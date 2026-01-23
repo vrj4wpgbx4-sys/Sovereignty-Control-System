@@ -1,8 +1,8 @@
 """
 Basic behavior checks for the AuthorityEngine.
 
-These tests use minimal "fake" classes defined in this file so that they do not
-depend on any other modules. They document and verify the core behavior defined
+These tests are intentionally simple and self-contained.
+They exist to prove the authority resolution behavior defined
 in the foundation documents.
 """
 
@@ -17,7 +17,6 @@ from authority_engine import AuthorityEngine, AuthorityDecision
 class IdentityStatus(Enum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
-    REVOKED = "revoked"
 
 
 class SystemState(Enum):
@@ -75,12 +74,7 @@ class PolicyCondition:
 
 
 class FakePolicy:
-    def __init__(
-        self,
-        applicable_role_names,
-        permission_names,
-        condition,
-    ):
+    def __init__(self, applicable_role_names, permission_names, condition):
         self.applicable_role_names = applicable_role_names
         self.permission_names = permission_names
         self.condition = condition
@@ -130,8 +124,62 @@ def test_deny_wrong_state():
 
     identity = FakeIdentity(active=True)
     identity.add_credential(FakeCredential("SOVEREIGN_OWNER"))
-    identity.assign_role("SOVEREIGN_OWNER"
+    identity.assign_role("SOVEREIGN_OWNER")
+
+    role = FakeRole("SOVEREIGN_OWNER", {"SOVEREIGN_OWNER"})
+    role.add_permission(FakePermission("AUTHORIZE_EMERGENCY_LOCKDOWN"))
+
+    roles_by_name = {"SOVEREIGN_OWNER": role}
+
+    policy = FakePolicy(
+        applicable_role_names={"SOVEREIGN_OWNER"},
+        permission_names={"AUTHORIZE_EMERGENCY_LOCKDOWN"},
+        condition=PolicyCondition(SystemState.CRISIS, minimum_approvals=1),
+    )
+
+    decision = engine.resolve(
+        identity=identity,
+        requested_permission_name="AUTHORIZE_EMERGENCY_LOCKDOWN",
+        system_state=SystemState.NORMAL,
+        roles_by_name=roles_by_name,
+        policies=[policy],
+    )
+
+    assert decision == AuthorityDecision.DENY
 
 
-Add basic behavior tests for authority engine
+def test_require_additional_approval():
+    engine = AuthorityEngine()
+
+    identity = FakeIdentity(active=True)
+    identity.add_credential(FakeCredential("FAMILY_GUARDIAN"))
+    identity.assign_role("FAMILY_GUARDIAN")
+
+    role = FakeRole("FAMILY_GUARDIAN", {"FAMILY_GUARDIAN"})
+    role.add_permission(FakePermission("AUTHORIZE_EMERGENCY_LOCKDOWN"))
+
+    roles_by_name = {"FAMILY_GUARDIAN": role}
+
+    policy = FakePolicy(
+        applicable_role_names={"FAMILY_GUARDIAN"},
+        permission_names={"AUTHORIZE_EMERGENCY_LOCKDOWN"},
+        condition=PolicyCondition(SystemState.CRISIS, minimum_approvals=2),
+    )
+
+    decision = engine.resolve(
+        identity=identity,
+        requested_permission_name="AUTHORIZE_EMERGENCY_LOCKDOWN",
+        system_state=SystemState.CRISIS,
+        roles_by_name=roles_by_name,
+        policies=[policy],
+    )
+
+    assert decision == AuthorityDecision.REQUIRE_ADDITIONAL_APPROVAL
+
+
+if __name__ == "__main__":
+    test_allow_basic_case()
+    test_deny_wrong_state()
+    test_require_additional_approval()
+    print("All basic authority engine tests passed.")
 
