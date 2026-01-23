@@ -133,5 +133,10 @@ def test_deny_wrong_state():
     identity.assign_role("SOVEREIGN_OWNER")
 
 
-Add basic behavior tests for authority engine
+if __name__ == "__main__":
+    test_allow_basic_case()
+    test_deny_wrong_state()
+    test_require_additional_approval()
+    print("All basic authority engine tests passed.")
+
 
