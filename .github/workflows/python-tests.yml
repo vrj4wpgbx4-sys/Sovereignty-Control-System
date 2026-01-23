@@ -20,6 +20,8 @@ jobs:
           python-version: "3.11"
 
       - name: Run authority engine tests
+        env:
+          PYTHONPATH: SRC
         run: |
           python src/test_authority_engine_basic.py
           python src/test_audit_event_basic.py
