@@ -183,5 +183,3 @@ if __name__ == "__main__":
     test_require_additional_approval()
     print("All basic authority engine tests passed.")
 
-
-

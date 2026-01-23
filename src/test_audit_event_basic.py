@@ -1,12 +1,4 @@
-"""
-Basic smoke test for the AuditEvent structure.
-
-This test verifies that an AuditEvent can be created and serialized
-without errors.
-"""
-
 from audit_event import AuditEvent
-
 
 def test_audit_event_creation():
     event = AuditEvent(
@@ -25,7 +17,9 @@ def test_audit_event_creation():
     assert event_dict["system_state"] == "CRISIS"
     assert "timestamp" in event_dict
 
+    print("AuditEvent test passed.")
+    print(event_dict)
+
 
 if __name__ == "__main__":
     test_audit_event_creation()
-    print("AuditEvent test passed.")
