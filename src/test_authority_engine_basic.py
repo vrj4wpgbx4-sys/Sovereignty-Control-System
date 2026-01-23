@@ -130,7 +130,7 @@ def test_deny_wrong_state():
 
     identity = FakeIdentity(active=True)
     identity.add_credential(FakeCredential("SOVEREIGN_OWNER"))
-    identity.assign_role("SOVEREIGN_OWNER"
+    identity.assign_role("SOVEREIGN_OWNER")
 
 
 Add basic behavior tests for authority engine
