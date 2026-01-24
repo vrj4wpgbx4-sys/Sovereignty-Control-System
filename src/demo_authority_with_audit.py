@@ -11,6 +11,9 @@ This represents a thin integration layer ON TOP of the core.
 
 from enum import Enum
 
+from audit_logger import AuditLogger
+
+
 from authority_engine import AuthorityEngine
 from audit_event import AuditEvent
 
@@ -127,3 +130,8 @@ if __name__ == "__main__":
     print("Decision:", decision)
     print("Audit event:")
     print(event.to_dict())
+
+     # Write to local audit log
+    logger = AuditLogger(log_path="data/audit_log.jsonl")
+    logger.append(event)
+    print("Audit event written to data/audit_log.jsonl")
