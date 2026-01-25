@@ -1,0 +1,49 @@
+{
+  "scenarios": [
+    {
+      "id": "scenario_1",
+      "menu_option": "1",
+      "label": "Sovereign owner – emergency lockdown in CRISIS state",
+      "identity_display_name": "Ronald",
+      "credential": "SOVEREIGN_OWNER",
+      "role_name": "SOVEREIGN_OWNER",
+      "permission_name": "AUTHORIZE_EMERGENCY_LOCKDOWN",
+      "system_state": "CRISIS",
+      "required_system_state": "CRISIS",
+      "minimum_approvals": 1,
+      "policy_id": "policy-001",
+      "reason": "Sovereign owner attempts emergency lockdown in crisis state",
+      "expected_decision": "ALLOW"
+    },
+    {
+      "id": "scenario_2",
+      "menu_option": "2",
+      "label": "Sovereign owner – emergency lockdown in NORMAL state",
+      "identity_display_name": "Ronald",
+      "credential": "SOVEREIGN_OWNER",
+      "role_name": "SOVEREIGN_OWNER",
+      "permission_name": "AUTHORIZE_EMERGENCY_LOCKDOWN",
+      "system_state": "NORMAL",
+      "required_system_state": "CRISIS",
+      "minimum_approvals": 1,
+      "policy_id": "policy-001",
+      "reason": "Sovereign owner attempts emergency lockdown in normal state",
+      "expected_decision": "DENY"
+    },
+    {
+      "id": "scenario_3",
+      "menu_option": "3",
+      "label": "Family guardian – emergency lockdown in CRISIS state (two approvals required)",
+      "identity_display_name": "Guardian",
+      "credential": "FAMILY_GUARDIAN",
+      "role_name": "FAMILY_GUARDIAN",
+      "permission_name": "AUTHORIZE_EMERGENCY_LOCKDOWN",
+      "system_state": "CRISIS",
+      "required_system_state": "CRISIS",
+      "minimum_approvals": 2,
+      "policy_id": "policy-002",
+      "reason": "Family guardian attempts emergency lockdown; policy requires two approvals",
+      "expected_decision": "REQUIRE_ADDITIONAL_APPROVAL"
+    }
+  ]
+}
