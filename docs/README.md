@@ -1,3 +1,15 @@
+## Governance & Accountability
+
+This system enforces policy-driven, auditable decision-making.
+
+Key documents:
+- [Decision Model](docs/governance/DECISION_MODEL.md)
+- [Accountability & Transparency Architecture](docs/architecture/accountability_transparency_flow.png)
+- [Foundation Index](docs/FOUNDATION_INDEX.md)
+
+
+
+
 Decision Explainability (System Narrative)
 
 
