@@ -1,25 +1,22 @@
+
 """
-Sovereignty Control System - CLI Demo
+Sovereignty Control System - Config-Driven CLI with Explainability
 
-This CLI runs on top of the integration layer:
-
-- Uses AuthorityEngine to make decisions
-- Uses AuditLogger to write audit events to data/audit_log.jsonl
-- Lets you trigger a few predefined scenarios from the command line
-
-Core remains untouched. This is integration / UX only.
+This CLI:
+- Loads scenario definitions from config/governance_scenarios.json
+- Loads policy definitions from config/governance_policies.json
+- Builds identities, roles, permissions, and policies from config
+- Uses AuthorityEngine + AuditLogger to decide and record outcomes
+- Prints which policies were applied and why
 """
 
 from enum import Enum
 
 from authority_engine import AuthorityEngine
 from audit_logger import AuditLogger
-from audit_event import AuditEvent
+from scenario_config_loader import load_scenarios
+from policy_config_loader import load_policies
 
-
-# ---------------------------------------------------------------------------
-# Minimal supporting types
-# ---------------------------------------------------------------------------
 
 class IdentityStatus(Enum):
     ACTIVE = "active"
@@ -95,72 +92,50 @@ class FakePolicy:
         return permission_name in self.permission_names
 
 
-# ---------------------------------------------------------------------------
-# Scenario builders
-# ---------------------------------------------------------------------------
-
-def build_scenario_sov_executive_lockdown(system_state: SystemState):
+def build_scenario_from_config(scenario_cfg: dict, policy_cfg: dict):
     """
-    Scenario 1 / 2:
-    Sovereign Owner tries to authorize emergency lockdown.
-    Outcome depends on system_state.
+    Build identity, roles, policies, and metadata from scenario + policy config.
     """
-    identity = FakeIdentity(display_name="Ronald", active=True)
-    identity.add_credential(FakeCredential("SOVEREIGN_OWNER"))
-    identity.assign_role("SOVEREIGN_OWNER")
+    identity = FakeIdentity(display_name=scenario_cfg["identity_display_name"], active=True)
+    identity.add_credential(FakeCredential(scenario_cfg["credential"]))
+    identity.assign_role(scenario_cfg["role_name"])
 
-    perm_name = "AUTHORIZE_EMERGENCY_LOCKDOWN"
+    role = FakeRole(scenario_cfg["role_name"], {scenario_cfg["credential"]})
+    perm_name = scenario_cfg["permission_name"]
+    perm = FakePermission(perm_name)
+    role.add_permission(perm)
+    roles_by_name = {scenario_cfg["role_name"]: role}
 
-    role = FakeRole("SOVEREIGN_OWNER", {"SOVEREIGN_OWNER"})
-    role.add_permission(FakePermission(perm_name))
-    roles_by_name = {"SOVEREIGN_OWNER": role}
-
-    condition = PolicyCondition(required_system_state=SystemState.CRISIS, minimum_approvals=1)
-    policy = FakePolicy(
-        applicable_role_names={"SOVEREIGN_OWNER"},
-        permission_names={perm_name},
-        condition=condition,
-        policy_id="policy-001",
+    cond_cfg = policy_cfg.get("conditions", {})
+    required_state_name = (
+        cond_cfg.get("required_system_state")
+        or cond_cfg.get("system_state")
+        or scenario_cfg["system_state"]
+    )
+    minimum_approvals = int(
+        cond_cfg.get("minimum_approvals", scenario_cfg.get("minimum_approvals", 1))
     )
 
-    reason = f"Sovereign owner attempts emergency lockdown in {system_state.name} state"
+    required_state = SystemState[required_state_name]
 
-    return identity, roles_by_name, [policy], perm_name, [policy.id], reason
-
-
-def build_scenario_guardian_lockdown(system_state: SystemState):
-    """
-    Scenario 3:
-    Family Guardian attempts emergency lockdown, but policy
-    requires two approvals. Engine should respond with
-    REQUIRE_ADDITIONAL_APPROVAL in CRISIS state.
-    """
-    identity = FakeIdentity(display_name="Guardian", active=True)
-    identity.add_credential(FakeCredential("FAMILY_GUARDIAN"))
-    identity.assign_role("FAMILY_GUARDIAN")
-
-    perm_name = "AUTHORIZE_EMERGENCY_LOCKDOWN"
-
-    role = FakeRole("FAMILY_GUARDIAN", {"FAMILY_GUARDIAN"})
-    role.add_permission(FakePermission(perm_name))
-    roles_by_name = {"FAMILY_GUARDIAN": role}
-
-    condition = PolicyCondition(required_system_state=SystemState.CRISIS, minimum_approvals=2)
-    policy = FakePolicy(
-        applicable_role_names={"FAMILY_GUARDIAN"},
-        permission_names={perm_name},
-        condition=condition,
-        policy_id="policy-002",
+    condition = PolicyCondition(
+        required_system_state=required_state,
+        minimum_approvals=minimum_approvals,
     )
 
-    reason = "Family guardian attempts emergency lockdown (policy requires two approvals)"
+    policy = FakePolicy(
+        applicable_role_names={scenario_cfg["role_name"]},
+        permission_names={perm_name},
+        condition=condition,
+        policy_id=policy_cfg["id"],
+    )
 
-    return identity, roles_by_name, [policy], perm_name, [policy.id], reason
+    system_state = SystemState[scenario_cfg["system_state"]]
+    policy_ids = [policy_cfg["id"]]
+    reason = scenario_cfg.get("reason") or policy_cfg.get("reason", "No reason provided")
 
+    return identity, roles_by_name, [policy], perm_name, system_state, policy_ids, reason
 
-# ---------------------------------------------------------------------------
-# CLI core
-# ---------------------------------------------------------------------------
 
 def run_scenario(
     engine: AuthorityEngine,
@@ -172,7 +147,11 @@ def run_scenario(
     system_state: SystemState,
     policy_ids,
     reason: str,
+    active_policies: list,
 ):
+    """
+    Run a single scenario, print decision and explain which policies were applied.
+    """
     decision, event = engine.resolve_with_audit(
         identity=identity,
         requested_permission_name=perm_name,
@@ -189,18 +168,35 @@ def run_scenario(
     print("System state:", system_state.name)
     print("Requested permission:", perm_name)
     print("Decision:", decision.name)
-    print("Audit event:")
+
+    # Explainability block: which policies applied, in human terms
+    print("\nApplied policies:")
+    if not active_policies:
+        print("  (none – check configuration)")
+    else:
+        for p in active_policies:
+            pid = p.get("id", "(no id)")
+            name = p.get("name", "(no name)")
+            preason = p.get("reason", "").strip()
+            if preason:
+                print(f"  - {pid}: {name} – {preason}")
+            else:
+                print(f"  - {pid}: {name}")
+
+    print("\nAudit event:")
     print(event.to_dict())
 
     logger.append(event)
     print("Audit event written to data/audit_log.jsonl\n")
 
 
-def print_menu():
+def print_menu(scenarios: dict):
     print("=== Sovereignty Control System CLI ===")
-    print("1) Sovereign owner – emergency lockdown in CRISIS state (expected: ALLOW)")
-    print("2) Sovereign owner – emergency lockdown in NORMAL state (expected: DENY)")
-    print("3) Family guardian – emergency lockdown in CRISIS (expected: REQUIRE_ADDITIONAL_APPROVAL)")
+    for key in sorted(scenarios.keys(), key=lambda x: int(x) if x.isdigit() else x):
+        cfg = scenarios[key]
+        label = cfg.get("label", f"Scenario {key}")
+        expected = cfg.get("expected_decision", "?")
+        print(f"{key}) {label} (expected: {expected})")
     print("q) Quit")
     print()
 
@@ -209,61 +205,51 @@ def main():
     engine = AuthorityEngine()
     logger = AuditLogger(log_path="data/audit_log.jsonl")
 
+    scenarios = load_scenarios()
+    policies_by_id = load_policies()
+
     while True:
-        print_menu()
+        print_menu(scenarios)
         choice = input("Select an option: ").strip().lower()
 
         if choice == "q":
             print("Exiting CLI.")
             break
 
-        elif choice == "1":
-            identity, roles_by_name, policies, perm_name, policy_ids, reason = \
-                build_scenario_sov_executive_lockdown(SystemState.CRISIS)
-            run_scenario(
-                engine,
-                logger,
-                identity,
-                roles_by_name,
-                policies,
-                perm_name,
-                SystemState.CRISIS,
-                policy_ids,
-                reason,
-            )
+        scenario_cfg = scenarios.get(choice)
+        if not scenario_cfg:
+            print("Unrecognized option. Please choose a listed number or 'q' to quit.\n")
+            continue
 
-        elif choice == "2":
-            identity, roles_by_name, policies, perm_name, policy_ids, reason = \
-                build_scenario_sov_executive_lockdown(SystemState.NORMAL)
-            run_scenario(
-                engine,
-                logger,
-                identity,
-                roles_by_name,
-                policies,
-                perm_name,
-                SystemState.NORMAL,
-                policy_ids,
-                reason,
-            )
+        policy_id = scenario_cfg.get("policy_id")
+        if not policy_id or policy_id not in policies_by_id:
+            print(f"No policy found for scenario (policy_id={policy_id!r}). Check configuration.\n")
+            continue
 
-        elif choice == "3":
-            identity, roles_by_name, policies, perm_name, policy_ids, reason = \
-                build_scenario_guardian_lockdown(SystemState.CRISIS)
-            run_scenario(
-                engine,
-                logger,
-                identity,
-                roles_by_name,
-                policies,
-                perm_name,
-                SystemState.CRISIS,
-                policy_ids,
-                reason,
-            )
+        policy_cfg = policies_by_id[policy_id]
 
-        else:
-            print("Unrecognized option. Please choose 1, 2, 3, or q.\n")
+        (
+            identity,
+            roles_by_name,
+            policies,
+            perm_name,
+            system_state,
+            policy_ids,
+            reason,
+        ) = build_scenario_from_config(scenario_cfg, policy_cfg)
+
+        run_scenario(
+            engine,
+            logger,
+            identity,
+            roles_by_name,
+            policies,
+            perm_name,
+            system_state,
+            policy_ids,
+            reason,
+            active_policies=[policy_cfg],
+        )
 
 
 if __name__ == "__main__":
