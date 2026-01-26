@@ -1,0 +1,4 @@
+{"timestamp":"2026-02-01T10:15:00Z","policy_id":"policy-001","policy_version":"1.0.0","change_type":"CREATE","actor_label":"Ronald","reason":"Introduce emergency sovereign authority policy for crisis state.","previous_version":null}
+{"timestamp":"2026-02-10T09:00:00Z","policy_id":"policy-001","policy_version":"1.1.0","change_type":"UPDATE","actor_label":"Ronald","reason":"Narrow emergency lockdown conditions and clarify crisis-only applicability.","previous_version":"1.0.0"}
+{"timestamp":"2026-01-26T00:00:00Z","policy_id":"policy-002","policy_version":"1.0.0","change_type":"CREATE","actor_label":"Ronald","reason":"Introduce normal-state restriction on emergency lockdown authority.","previous_version":null}
+{"timestamp":"2026-03-01T14:30:00Z","policy_id":"policy-003","policy_version":"1.0.0","change_type":"DEPRECATE","actor_label":"Ronald","reason":"Retire legacy guardian override policy in favor of multi-approval flow.","previous_version":"1.0.0"}
