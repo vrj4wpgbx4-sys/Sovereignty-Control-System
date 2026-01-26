@@ -9,6 +9,9 @@ This document describes how the Sovereignty Control System evaluates requests fo
 The decision model is consistent across all releases and is driven by externally defined governance policies and scenarios.
 
 
+For a grant- and reviewer-facing explanation of how this decision model supports accountability and transparency, see:
+
+docs/grant_alignment.md
 
 ---
 

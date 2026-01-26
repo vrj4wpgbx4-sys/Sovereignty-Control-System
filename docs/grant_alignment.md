@@ -2,21 +2,47 @@
 
 ## Executive Summary (Reviewer-Oriented)
 
-The **Sovereignty Control System** is a policy-driven governance engine designed to enforce accountability and transparency for high-stakes digital actions. Rather than relying on informal procedures or opaque application logic, the system externalizes authority rules into human-readable policies, evaluates decisions deterministically, and records every privileged action in an immutable audit log.
+The **Sovereignty Control System** is a policy-driven governance engine designed to enforce accountability and transparency for high-stakes digital actions. Rather than relying on informal procedures, discretionary judgment, or opaque application logic, the system makes authority explicit, evaluates decisions deterministically, and records every privileged action in an immutable audit log.
 
-This architecture allows reviewers, regulators, and institutional partners to inspect how authority is defined, how decisions are made, and how actions are recorded—without needing to trust undocumented practices or proprietary logic.
+Governance rules are externalized into human-readable configuration files, decisions are reproducible, and outcomes are explainable in plain language. This architecture allows reviewers, regulators, and institutional partners to inspect how authority is defined, how decisions are made, and how actions are recorded—without needing to trust undocumented practices or hidden logic.
+
+---
+
+## Plain-Language Accountability & Transparency Summary
+
+This system is designed so that important actions cannot happen quietly, informally, or without evidence.
+
+Before anyone can perform a high-impact action, the system checks written rules that clearly state:
+- who is allowed to act,
+- what they are allowed to do,
+- and under what conditions.
+
+These rules are written in simple configuration files that reviewers can read directly. They are not hidden inside the software.
+
+When a request is made, the system always reaches the same decision if the same situation happens again. This means decisions are consistent, predictable, and fair.
+
+Every decision is recorded automatically. Each record shows:
+- who made the request,
+- what action was requested,
+- the situation at the time,
+- which rule allowed or blocked it,
+- and when the decision occurred.
+
+Because each decision is tied to a specific written rule, anyone reviewing the system later can see exactly why the system acted the way it did. There are no secret overrides and no undocumented exceptions.
+
+This makes the system easy to review, easy to audit, and difficult to misuse.
 
 ---
 
 ## 1. Project Overview
 
-The Sovereignty Control System supports families, small organizations, and institutional custodians who need clear, enforceable control over who may perform critical actions, under what conditions, and with what level of oversight.
+The Sovereignty Control System supports families, small organizations, and institutional custodians who require clear, enforceable control over **who may perform critical actions, under what conditions, and with what level of oversight**.
 
 Instead of embedding governance rules deep inside application code, the system separates:
 
-- **Policy definition** (human-readable configuration)
-- **Decision evaluation** (deterministic governance engine)
-- **Execution and logging** (auditable outcomes)
+- **Policy definition** — human-readable configuration files
+- **Decision evaluation** — a deterministic governance engine
+- **Execution and logging** — auditable outcomes
 
 Every privileged request—such as an emergency lockdown—is evaluated against explicit policies, produces a documented decision, and generates a traceable audit event.
 
@@ -26,7 +52,7 @@ The result is a governance system that is reviewable, challengeable, and defensi
 
 ## 2. Accountability (How Authority Is Constrained)
 
-Accountability is enforced at the architecture level, not left to informal practice or discretionary behavior.
+Accountability is enforced at the **architecture level**, not left to informal practice or discretionary behavior.
 
 ### Policy-Driven Authority
 
@@ -45,7 +71,7 @@ The Authority Engine evaluates identity, requested permission, and current syste
 - `DENY`
 - `REQUIRE_ADDITIONAL_APPROVAL`
 
-Given the same inputs, the same decision is always produced—an essential requirement for fairness, auditability, and post-hoc review.
+Given the same inputs, the same decision is always produced. This determinism is essential for fairness, auditability, and post-hoc review.
 
 ### Separation of Responsibilities
 
@@ -83,6 +109,8 @@ At runtime, the CLI reports:
 Example output:
 
 
+
+
 This provides a clear, traceable explanation that links outcomes directly to governance intent.
 
 ### Discoverable Documentation
@@ -92,7 +120,7 @@ The repository includes:
 - An accountability & transparency architecture diagram
 - This reviewer-focused grant alignment document
 
-Together, these artifacts allow reviewers to understand both what the system does and why it behaves as it does.
+Together, these artifacts allow reviewers to understand both **what the system does** and **why it behaves as it does**.
 
 ---
 
@@ -138,6 +166,25 @@ This project directly advances grant priorities related to:
 
 Rather than relying on assurances of responsible use, the Sovereignty Control System provides a concrete, testable mechanism for accountable and transparent decision-making in digital environments.
 
+---
+
+## Appendix: Alignment With Federal Accountability Expectations
+
+While this project is applicable beyond federal contexts, its design aligns directly with common expectations expressed by U.S. funding and oversight bodies.
+
+### Responsible System Design (NSF-Aligned)
+
+Governance rules are explicit, reviewable, and reproducible. Authority decisions are deterministic, supporting transparency, fairness, and independent verification of system behavior.
+
+### Oversight and Auditability (NIH-Aligned)
+
+Every privileged action generates a complete audit record capturing identity, action, system state, applied policy, timestamp, and justification. No decision exists without an audit artifact, enabling retrospective review and compliance verification.
+
+### Internal Controls and Risk Mitigation (OMB-Aligned)
+
+The system separates policy definition from execution, prevents silent overrides, and requires version-controlled changes to authority rules. This reduces the risk of unauthorized actions, undocumented exceptions, or authority drift over time.
+
+Together, these properties ensure that accountability and transparency are enforced by system design rather than dependent on informal process or trust.
 
 
 
