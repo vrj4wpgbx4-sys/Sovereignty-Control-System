@@ -1,4 +1,3 @@
-
 """
 Sovereignty Control System - Config-Driven CLI with Explainability
 
@@ -8,14 +7,24 @@ This CLI:
 - Builds identities, roles, permissions, and policies from config
 - Uses AuthorityEngine + AuditLogger to decide and record outcomes
 - Prints which policies were applied and why
+
+Additional non-interactive command:
+- `validate-policies` runs static validation on governance policies and the policy change log.
 """
 
+import sys
 from enum import Enum
 
 from authority_engine import AuthorityEngine
 from audit_logger import AuditLogger
 from scenario_config_loader import load_scenarios
 from policy_config_loader import load_policies
+from policy_validation import (
+    validate_policies,
+    summarize_validation,
+    POLICY_CONFIG_DEFAULT,
+    POLICY_CHANGE_LOG_DEFAULT,
+)
 
 
 class IdentityStatus(Enum):
@@ -202,6 +211,52 @@ def print_menu(scenarios: dict):
 
 
 def main():
+    # Non-interactive command: validate-policies
+    #
+    # Usage examples:
+    #   python src/sovereignty_cli.py validate-policies
+    #   python src/sovereignty_cli.py validate-policies --strict
+    #   python src/sovereignty_cli.py validate-policies --config config/governance_policies.json
+    #
+    if len(sys.argv) > 1 and sys.argv[1] == "validate-policies":
+        # Default paths from policy_validation module
+        config_path = POLICY_CONFIG_DEFAULT
+        change_log_path = POLICY_CHANGE_LOG_DEFAULT
+        strict = False
+
+        args = sys.argv[2:]
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--config" and i + 1 < len(args):
+                config_path = args[i + 1]
+                i += 2
+            elif arg == "--change-log" and i + 1 < len(args):
+                change_log_path = args[i + 1]
+                i += 2
+            elif arg == "--strict":
+                strict = True
+                i += 1
+            else:
+                print(f"Unrecognized option for validate-policies: {arg}")
+                print("Supported options: --config <path>, --change-log <path>, --strict")
+                sys.exit(2)
+
+        result = validate_policies(
+            config_path=config_path,
+            change_log_path=change_log_path,
+        )
+        summary, exit_code = summarize_validation(result)
+
+        # In strict mode, warnings are treated as errors.
+        if strict and result.ok and result.warnings:
+            summary += "\nStrict mode: treating warnings as errors."
+            exit_code = 1
+
+        print(summary)
+        sys.exit(exit_code)
+
+    # Interactive scenario-driven CLI (unchanged behavior)
     engine = AuthorityEngine()
     logger = AuditLogger(log_path="data/audit_log.jsonl")
 
