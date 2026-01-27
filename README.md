@@ -1,133 +1,100 @@
-# Sovereignty Control System
 
-This repository contains the core architecture, prototypes, and documentation for a Digital Sovereignty & Asset Control System.
+# Sovereignty Control System (SCS)
 
-Document governance core (v0.1) in README
-
-## Governance Core (v0.1)
-
-This repository contains a **locked governance core** for a Digital Sovereignty & Asset Control System.
-
-The governance core defines *how authority decisions are made* and *how those decisions are auditable*, independent of any UI, custody system, or execution platform.
-
-The core is versioned and frozen at:
-
-> **Tag:** `v0.1-governance-core`
+**Version:** v0.6  
+**Status:** Active Development  
+**Focus:** Deterministic governance, policy enforcement, and decision visibility
 
 ---
 
-### What This Core Does
+## Overview
 
-At its core, the system answers one question deterministically:
+The **Sovereignty Control System (SCS)** is a governance-first control framework designed to model, enforce, and audit authority-based decisions in high-trust, high-risk systems.
 
-> **“Is this identity allowed to perform this action right now?”**
+SCS treats governance as executable logic — not documentation — and ensures that **every privileged action is evaluated, enforced, and recorded according to explicit policy**.
 
-It does so by evaluating:
-
-- Identity status
-- Credentials
-- Roles
-- Permissions
-- Policies
-- Explicit system state (e.g., NORMAL, CRISIS)
-
-The output is a clear decision:
-
-- `ALLOW`
-- `DENY`
-- `REQUIRE_ADDITIONAL_APPROVAL`
-- `DEFER`
-
-No action is executed automatically.  
-This system governs decisions — it does not perform them.
+The system is intentionally opinionated:
+- Authority is defined
+- Policies are explicit
+- Enforcement is deterministic
+- Decisions are immutable
+- Oversight is visible
 
 ---
 
-### Auditability by Design
+## What SCS Does
 
-Every authority decision can optionally emit a structured **audit event** that records:
+At its core, SCS evaluates **requested actions** against:
+- Identity
+- System state
+- Authority hierarchy
+- Active policies
 
-- Who attempted the action
-- What permission was requested
-- The system state at the time
-- The decision outcome
-- Relevant policy identifiers
-- A timestamp and optional human-readable reason
+It then produces one of three outcomes:
 
-This creates a durable, reviewable provenance trail suitable for:
-- Compliance
-- Dispute resolution
-- Governance review
-- Long-term continuity
+- **ALLOW** — action is permitted
+- **DENY** — action is prohibited
+- **REQUIRE_ADDITIONAL_APPROVAL** — action is gated by governance rules
 
----
-
-### What This Core Explicitly Does *Not* Do
-
-The governance core intentionally does **not**:
-
-- Hold or move assets
-- Replace legal or custodial systems
-- Perform market execution
-- Provide a user interface
-- Persist data or logs
-
-These concerns are designed to be layered **on top** of the core without altering its behavior.
+Every evaluation produces a **decision record** explaining *why* the outcome occurred.
 
 ---
 
-### Why the Core Is Locked
+## Current Capabilities (v0.6)
 
-The governance core is frozen at `v0.1-governance-core` to:
+### ✅ Governance & Authority
+- Explicit authority hierarchy
+- Sovereign owner and delegated roles
+- Guardian-based escalation rules
 
-- Preserve a known-good authority model
-- Prevent accidental scope creep
-- Enable future extensions without rewriting fundamentals
-- Provide a stable reference for review, grants, or acquisition discussions
+### ✅ Policy Engine
+- Policy-driven authorization
+- State-dependent rules (e.g., NORMAL vs CRISIS)
+- Deterministic evaluation (no heuristics)
 
-All future development should build *around* this core, not change it casually.
+### ✅ Enforcement Layer
+- Central decision gate for sensitive actions
+- Action requests cannot bypass evaluation
+- Enforcement logic isolated from callers
 
----
+### ✅ Decision Logging
+- Every decision is recorded with:
+  - Timestamp
+  - Identity
+  - Requested action
+  - System state
+  - Decision outcome
+  - Applied policy IDs
+  - Human-readable reasoning
 
-### Key Files
+### ✅ Decision Visibility (New in v0.6)
+- Read-only CLI access to decision history
+- No authority required to view past decisions
+- Supports governance review, audits, and oversight
 
-- `src/authority_engine.py`  
-  Deterministic authority resolution logic.
-
-- `src/audit_event.py`  
-  Structured audit record for authority decisions.
-
-- `src/test_authority_engine_basic.py`  
-  Behavioral tests for authority resolution.
-
-- `src/test_audit_event_basic.py`  
-  Smoke test for audit event structure.
-
----
-
-### Status
-
-The governance core is complete, tested, and versioned.
-
-Further development will focus on:
-- Integration layers
-- Interfaces
-- Persistence
-- Policy authoring tools
-
-without modifying the core authority logic.
+Example:
+```bash
+python src/main.py view-decisions
 
 
-
-## Purpose
-
-- Provide individuals, families, and organizations with secure visibility and control over their digital identities and assets.
-- Encode authority, permissions, and emergency controls in a verifiable, auditable way.
-- Serve as a time-stamped record of design and development to support proof of authorship and ownership.
-
-## Current Status
-
-- Initial planning and architecture
-- Language: Python
-- Early experiments may be built in cloud IDEs (e.g., Replit) then synced here
-
+Sovereignty-Control-System/
+├── src/
+│   ├── authority_engine.py
+│   ├── audit_event.py
+│   ├── decision_gate.py
+│   ├── main.py
+│   ├── view_decisions_cli.py
+│   └── enforcement/
+│       └── decision_gate.py
+│
+├── docs/
+│   ├── FOUNDATION_INDEX.md
+│   ├── VERSIONING_PHILOSOPHY.md
+│   └── governance/
+│       ├── DECISION_MODEL.md
+│       ├── POLICY_LIFECYCLE.md
+│       ├── DECISION_HISTORY_MODEL.md
+│       └── OVERSIGHT_VISIBILITY.md
+│
+├── RELEASES.md
+└── README.md
