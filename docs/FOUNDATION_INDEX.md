@@ -95,6 +95,18 @@ This document defines **why the system is valuable as an asset**.
 
 ---
 
+### 1.7 Versioning Philosophy  
+**File:** `docs/VERSIONING_PHILOSOPHY.md`
+
+Defines:
+- How versions and releases are interpreted
+- Why some internal phases are intentionally unlisted
+- The criteria for what constitutes a release-worthy milestone
+
+This document defines **how to read the release history correctly**.
+
+---
+
 ## 2. Authority Hierarchy
 
 In the event of conflict or ambiguity, documents are interpreted in the following order of precedence:

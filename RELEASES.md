@@ -54,6 +54,41 @@ Tags are named using a version identifier and a short descriptor of the mileston
 
 ## Tagged Release History
 
+---
+
+### v0.6-decision-visibility
+
+**Status:** Stable  
+**Purpose:** Read-only governance transparency
+
+This release introduces **decision visibility without enforcement authority**.  
+For the first time, governance outcomes can be **reviewed independently of execution**.
+
+v0.6 formalizes the separation between:
+- **Who may decide**
+- **Who may observe**
+- **Who may enforce**
+
+This is a critical boundary for auditor trust, partner review, and institutional adoption.
+
+**Key characteristics:**
+- Read-only decision visibility via CLI (`view-decisions`)
+- Deterministic replay of governance outcomes
+- Immutable audit trail inspection
+- No authority escalation or mutation permitted
+- Explicit denial visibility in non-crisis states
+- Crisis-state decisions observable without override capability
+
+**What this enables:**
+- External reviewers can inspect governance behavior
+- Partners can evaluate trust boundaries without privileged access
+- Auditors can validate decision consistency across system states
+
+This release marks the transition from **governance enforcement** to **governance observability**.
+
+---
+
+
 ### v0.4-policy-lifecycle (Current)
 
 **Status:** Stable  
