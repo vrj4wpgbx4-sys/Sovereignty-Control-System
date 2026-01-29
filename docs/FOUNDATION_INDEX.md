@@ -1,19 +1,25 @@
-# Foundation Index
+# FOUNDATION INDEX  
 ## Sovereignty Control System
 
 This document defines the **canonical foundation** of the Sovereignty Control System.
 
-All implementation, documentation, and future extensions must conform to the principles and structures defined in the documents listed below.
+All implementation, documentation, execution paths, and future extensions **must conform** to the principles, constraints, and structures defined here.
 
-This index exists to prevent drift, ambiguity, and uncontrolled scope expansion.
+This index exists to prevent:
+- Conceptual drift
+- Authority ambiguity
+- Uncontrolled scope expansion
+- Post-hoc reinterpretation
+
+Anything not anchored in this index is **non-canonical by definition**.
 
 ---
 
 ## 1. Canonical Foundation Documents
 
-The following documents collectively define the system’s meaning, behavior, and constraints.
+The following documents collectively define the system’s **meaning, behavior, and limits**.
 
-They are authoritative by design.
+They are authoritative by design and must be interpreted together.
 
 ---
 
@@ -21,9 +27,9 @@ They are authoritative by design.
 **File:** `IDENTITY_AUTHORITY_MODEL.md`
 
 Defines:
-- Core system objects (Identity, Credential, Role, Permission, Policy)
-- The meaning and boundaries of each object
-- The vocabulary used throughout the system
+- Core system entities (Identity, Credential, Role, Permission, Policy)
+- Explicit boundaries of each entity
+- Canonical vocabulary used throughout the system
 
 This document defines **what exists**.
 
@@ -33,10 +39,10 @@ This document defines **what exists**.
 **File:** `AUTHORITY_RESOLUTION_AND_STATE_MODEL.md`
 
 Defines:
-- The step-by-step authority resolution process
-- The role of system state in decision-making
-- Allowed outcomes of authority evaluation
-- Failure and ambiguity handling
+- The deterministic authority evaluation sequence
+- How system state participates in decisions
+- Allowed decision outcomes
+- Failure, ambiguity, and fail-closed behavior
 
 This document defines **how decisions are made**.
 
@@ -47,46 +53,58 @@ This document defines **how decisions are made**.
 
 Defines:
 - Policy lifecycle and versioning
-- Policy validation requirements
 - Accountability guarantees
-- Reviewer walkthrough and evaluation guidance
+- Review and audit expectations
+- Evidence required for external evaluation
 
-These documents define **how authority is governed, reviewed, and audited**.
+These documents define **how authority is governed, reviewed, and defended**.
 
 ---
 
-### 1.4 Technical Appendix  
+### 1.4 Enforcement Model  
+**File:** `docs/ENFORCEMENT_MODEL.md`
+
+Defines:
+- The boundary between decision and action
+- Enforcement preconditions and guarantees
+- Dispatcher, effector, and logging separation
+- Explicit non-goals and prohibitions
+
+This document defines **how authorized decisions may produce effects**.
+
+---
+
+### 1.5 Technical Appendix  
 **File:** `TECHNICAL_APPENDIX.md`
 
 Defines:
-- Architectural positioning
+- Architectural layering
 - Execution philosophy
-- System layering
 - Security posture
 - Design constraints and non-goals
 
-This document defines **how the system is built without locking implementation**.
+This document defines **how the system is built without constraining implementation detail**.
 
 ---
 
-### 1.5 Foundational Whitepaper  
+### 1.6 Foundational Whitepaper  
 **File:** `FOUNDATIONAL_WHITEPAPER.md`
 
 Defines:
-- The philosophical basis of the system
-- The problem of control failure under stress
-- Long-term vision and durability
-- Why authority must be explicit and auditable
+- Philosophical basis of the system
+- Failure modes of authority under stress
+- Long-term durability objectives
+- Why explicit, auditable authority matters
 
-This document defines **why the system should exist**.
+This document defines **why the system must exist**.
 
 ---
 
-### 1.6 Acquisition Memorandum  
+### 1.7 Acquisition Memorandum  
 **File:** `ACQUISITION_MEMO.md`
 
 Defines:
-- Strategic value to potential acquirers
+- Strategic and commercial value
 - Differentiation from adjacent solutions
 - Integration and expansion considerations
 - Risk framing and defensibility
@@ -95,30 +113,31 @@ This document defines **why the system is valuable as an asset**.
 
 ---
 
-### 1.7 Versioning Philosophy  
+### 1.8 Versioning Philosophy  
 **File:** `docs/VERSIONING_PHILOSOPHY.md`
 
 Defines:
-- How versions and releases are interpreted
-- Why some internal phases are intentionally unlisted
-- The criteria for what constitutes a release-worthy milestone
+- How versions and releases should be interpreted
+- Why certain internal phases are intentionally unlisted
+- Criteria for release-worthy milestones
 
-This document defines **how to read the release history correctly**.
+This document defines **how to correctly read the release history**.
 
 ---
 
-## 2. Authority Hierarchy
+## 2. Authority Precedence
 
-In the event of conflict or ambiguity, documents are interpreted in the following order of precedence:
+In the event of conflict, ambiguity, or interpretation disputes, documents are applied in the following order:
 
 1. Authority Resolution & State Model  
 2. Identity & Authority Model  
 3. Governance & Accountability Framework  
-4. Technical Appendix  
-5. Foundational Whitepaper  
-6. Acquisition Memorandum  
+4. Enforcement Model  
+5. Technical Appendix  
+6. Foundational Whitepaper  
+7. Acquisition Memorandum  
 
-Code, diagrams, tests, and presentations must conform to these documents.
+All code, tests, diagrams, tooling, and presentations **must conform** to this hierarchy.
 
 ---
 
@@ -131,8 +150,15 @@ Changes to canonical foundation documents require:
 - A committed change
 - Association with a tagged release where appropriate
 
-Canonical documents must not be altered casually.  
-Material changes to authority, governance, or accountability **require a new release**.
+Canonical documents **must not be edited casually**.
+
+Any material change to:
+- Authority
+- Governance
+- Enforcement boundaries
+- Accountability guarantees
+
+**requires a new release**.
 
 ---
 
@@ -140,25 +166,32 @@ Material changes to authority, governance, or accountability **require a new rel
 
 Formal system milestones are recorded in `RELEASES.md`.
 
-Each release represents a **locked governance state** that aligns with this foundation index. Reviewers should consult the latest tagged release for authoritative evaluation.
+Each tagged release represents a **locked governance state** that aligns with this foundation index.
+
+Reviewers must evaluate the system against:
+- The latest tagged release
+- The canonical documents listed here
 
 ---
 
-## 5. Reviewer Guidance
+## 5. Reviewer Entry Guidance
 
-Reviewers should read this document first to understand **what is authoritative**, then proceed to:
+Reviewers should proceed in the following order:
 
-1. `RELEASES.md`
-2. `docs/governance/`
-3. CLI execution and audit artifacts
+1. This document (`FOUNDATION_INDEX.md`)
+2. `RELEASES.md`
+3. Governance framework (`docs/governance/`)
+4. CLI execution paths
+5. Audit and enforcement artifacts
 
-This ordering is intentional.
+This ordering is intentional and enforced.
 
 ---
 
-## Final Note
+## Boundary Statement
 
-This index is not a roadmap.  
+This index is **not a roadmap**.  
+It is **not aspirational**.  
 It is a **boundary**.
 
-Anything not anchored here is non-canonical by definition.
+Anything not explicitly anchored here is non-canonical, non-authoritative, and non-binding.

@@ -1,0 +1,17 @@
+{
+  "delegation_id": "delegation-001",
+  "principal_identity_label": "SovereignOwner",
+  "delegate_identity_label": "Guardian",
+  "delegation_scope": {
+    "actions": ["AUTHORIZE_EMERGENCY_LOCKDOWN"],
+    "system_states": ["CRISIS"],
+    "thresholds": null
+  },
+  "valid_from": "2026-01-01T00:00:00Z",
+  "valid_until": null,
+  "policy_ids": ["policy-002"],
+  "created_timestamp": "2026-01-01T00:00:00Z",
+  "created_reason": "Guardian may request emergency lockdown during CRISIS.",
+  "revoked_timestamp": null,
+  "revoked_reason": null
+}

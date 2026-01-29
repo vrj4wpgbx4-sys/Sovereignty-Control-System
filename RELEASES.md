@@ -1,25 +1,28 @@
-# Sovereignty Control System – Releases
+# Sovereignty Control System — Releases
 
 This document records the **formal release history and release semantics** of the Sovereignty Control System.
 
 Releases in this repository are **governance milestones**, not feature drops or experimental snapshots.  
-Each release represents a **locked, reviewable state** of the system’s authority model, documentation, and audit behavior.
+Each release represents a **locked, reviewable state** of authority, delegation, enforcement boundaries, audit guarantees, and documentation.
 
 ---
 
 ## Release Semantics
 
-A release is created only when:
+A release is created only when **all** of the following are true:
 
 - Governance behavior is deterministic
 - Authority rules are explicit and documented
-- Accountability artifacts are present
+- Decision outcomes are audit-instrumented
+- Enforcement boundaries are clearly defined
 - System behavior can be reviewed without privileged access
 
 Releases are intended for:
+
 - Grant reviewers
 - Independent auditors
 - Institutional governance evaluators
+- Strategic partners assessing trust and control boundaries
 
 ---
 
@@ -28,127 +31,224 @@ Releases are intended for:
 ### Branches
 
 - **`main`**
-  - Canonical, reviewable line of development
-  - Always expected to be in a clean, working, review-ready state
-  - New work is merged into `main` only when it is conceptually complete and documented
+  - Canonical development branch
+  - Always expected to be clean, executable, and documented
+  - New work lands here only when conceptually complete
 
-- **Feature or integration branches** (e.g., `integration-v0.2`)
-  - Temporary or transitional
-  - Used for development and integration work
-  - Not considered governance milestones
+- **Feature / integration branches**
+  - Temporary and non-authoritative
+  - Used for isolated development
+  - Not governance milestones
   - May be deleted after merge
+
+---
 
 ### Tags
 
-Tags represent **locked governance milestones**.
+Tags represent **immutable governance milestones**.
 
 Once created, a tag:
 
 - Must not be moved
 - Must not be deleted
-- Serves as an immutable reference point for reviewers and auditors
+- Serves as a fixed reference for external review
 
-Tags are named using a version identifier and a short descriptor of the milestone (for example, `v0.3-foundation-complete`).
+Tags follow the pattern:
 
----
-
-## Tagged Release History
 
 ---
 
-### v0.6-decision-visibility
+## v0.8-delegation-enforcement
+
+**Status:** Complete  
+**Tag:** `v0.8-delegation-enforcement`
+
+### Summary
+
+Introduces **delegation-aware decision enforcement**.
+
+Delegation transitions from informational context to **policy-satisfying authority input**, while preserving determinism, auditability, and fail-closed behavior.
+
+This release marks the system’s transition from *delegation visibility* to *delegation-aware execution*.
+
+---
+
+### What Changed in v0.8
+
+- **Delegation-Aware Authority Evaluation**
+  - The authority engine resolves applicable delegations during evaluation
+  - Policies may explicitly require valid delegation to allow an action
+  - Delegation never bypasses policy; it only satisfies policy-defined conditions
+
+- **Delegation Constraints**
+  - Delegations are scoped by:
+    - principal
+    - delegate
+    - action
+    - system state
+    - policy ID(s)
+    - validity window
+  - Missing, expired, or mismatched delegations are ignored
+
+- **Principal / Delegate Accountability**
+  - Decisions influenced by delegation explicitly record:
+    - principal identity
+    - delegate identity
+    - delegation ID(s)
+  - Accountability remains anchored to the principal authority
+
+- **Audit Model Extensions**
+  - Audit events include delegation context only when applicable
+  - All decisions remain traceable to:
+    - policy
+    - decision
+    - delegation (if used)
+
+- **Execution Model Formalization**
+  - `docs/V08_EXECUTION_MODEL.md` defines:
+    - evaluation order
+    - delegation resolution
+    - enforcement eligibility
+    - fail-closed behavior
+
+---
+
+### What Did *Not* Change
+
+- No implicit or automatic delegation
+- No delegation creation or revocation CLI
+- No re-delegation (multi-hop authority)
+- No privilege escalation paths
+- No silent or background enforcement
+- No new decision outcomes beyond:
+  - `ALLOW`
+  - `DENY`
+  - `REQUIRE_ADDITIONAL_APPROVAL`
+
+Delegation remains **explicit, narrow, and auditable**.
+
+---
+
+### Governance Guarantees Preserved
+
+- **Fail-Closed by Default**  
+  Invalid or ambiguous delegations are treated as nonexistent.
+
+- **Deterministic Outcomes**  
+  Identical inputs always produce identical results.
+
+- **Policy Supremacy**  
+  Policies remain the sole source of authority.
+
+- **Oversight Visibility**  
+  Delegation influence is observable without granting execution power.
+
+---
+
+## v0.7-delegation-visibility
+
+**Status:** Complete  
+**Tag:** `v0.7-delegation-visibility`
+
+### Summary
+
+Introduces **read-only delegation visibility**.
+
+Delegations can be recorded, inspected, and correlated with decisions, without affecting enforcement behavior.
+
+### Key Characteristics
+
+- Append-only delegation registry (`data/delegations.jsonl`)
+- Delegation resolution logic
+- Read-only decision inspection with delegation context
+- No enforcement impact
+
+---
+
+## v0.6-decision-visibility
 
 **Status:** Stable  
-**Purpose:** Read-only governance transparency
+**Tag:** `v0.6-decision-visibility`
 
-This release introduces **decision visibility without enforcement authority**.  
-For the first time, governance outcomes can be **reviewed independently of execution**.
+### Summary
 
-v0.6 formalizes the separation between:
-- **Who may decide**
-- **Who may observe**
-- **Who may enforce**
+Introduces **read-only decision visibility**.
 
-This is a critical boundary for auditor trust, partner review, and institutional adoption.
+Governance outcomes become independently reviewable without execution authority.
 
-**Key characteristics:**
-- Read-only decision visibility via CLI (`view-decisions`)
-- Deterministic replay of governance outcomes
-- Immutable audit trail inspection
-- No authority escalation or mutation permitted
+### Key Characteristics
+
+- Deterministic decision replay
+- Immutable audit trail visibility
 - Explicit denial visibility in non-crisis states
-- Crisis-state decisions observable without override capability
 
-**What this enables:**
-- External reviewers can inspect governance behavior
-- Partners can evaluate trust boundaries without privileged access
-- Auditors can validate decision consistency across system states
-
-This release marks the transition from **governance enforcement** to **governance observability**.
+This release formalizes the separation between:
+- decision-making,
+- enforcement,
+- oversight.
 
 ---
 
-
-### v0.4-policy-lifecycle (Current)
+## v0.4-policy-lifecycle
 
 **Status:** Stable  
-**Purpose:** Formal governance enforcement
+**Tag:** `v0.4-policy-lifecycle`
 
-This release introduces explicit policy lifecycle controls and static validation. Policies are no longer implicit configuration; they are treated as **governed system artifacts**.
+### Summary
 
-**Key characteristics:**
-- Explicit policy outcomes (`ALLOW`, `DENY`, `REQUIRE_ADDITIONAL_APPROVAL`)
-- Policy versioning and lifecycle documentation
-- Static policy validation via CLI
+Introduces **formal policy lifecycle governance**.
+
+Policies become versioned, validated, first-class artifacts.
+
+### Key Characteristics
+
+- Explicit policy outcomes
+- Static policy validation
 - Append-only policy change log
-- Reviewer-grade governance documentation
-
-This release is intended for **formal external review**.
+- Reviewer-grade documentation
 
 ---
 
-### v0.3-foundation-complete
+## v0.3-foundation-complete
 
 **Status:** Stable  
-**Purpose:** Locked governance foundation
+**Tag:** `v0.3-foundation-complete`
 
-This release establishes the core governance engine, deterministic decision evaluation, and audit emission. It marks the point at which governance behavior became **observable and reproducible**.
+### Summary
 
-**Key characteristics:**
+Locks the core governance foundation.
+
+### Key Characteristics
+
 - Deterministic authority engine
 - Append-only audit logging
-- CLI-based scenario execution
+- Executable governance scenarios
 - Stable documentation structure
 
 ---
 
-### v0.2 Series – Integration and Accountability
+## v0.2 Series — Integration and Accountability
 
-- **`v0.2-governance-accountability`**  
-  Introduced early accountability documentation and framing.
+- `v0.2-governance-accountability`
+- `v0.2-governance-complete`
+- `v0.2-integration-cli`
 
-- **`v0.2-governance-complete`**  
-  Consolidated governance behavior for early review.
-
-- **`v0.2-integration-cli`**  
-  Added command-line integration and executable scenarios.
-
-These releases represent the transition from conceptual governance to executable demonstration.
+These releases mark the transition from conceptual governance to executable demonstration.
 
 ---
 
-### v0.1-governance-core
+## v0.1-governance-core
 
 **Status:** Archived (Foundational)
 
-Initial implementation of the authority engine and audit model. This release established the conceptual and structural basis for all later governance enforcement.
+Initial implementation of the authority engine and audit model.
 
 ---
 
-## How Reviewers Should Use This Document
+## Reviewer Usage Guidance
 
-1. Start with the **latest tagged release** (currently `v0.4-policy-lifecycle`)
-2. Check out that tag locally:
+1. Identify the **latest tagged release**
+2. Check out the tag:
    ```bash
    git fetch --tags
-   git checkout v0.4-policy-lifecycle
+   git checkout <tag>

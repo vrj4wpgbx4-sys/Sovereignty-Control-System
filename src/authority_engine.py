@@ -1,210 +1,286 @@
 """
-Authority Resolution Engine
+Authority / Decision Engine
+Sovereignty Control System — v0.8 (Delegation-Aware Evaluation)
 
-Implements the authority resolution flow defined in:
-docs/AUTHORITY_RESOLUTION_AND_STATE_MODEL.md
+This module evaluates governance decisions based on:
 
-This engine is intentionally minimal and deterministic.
+- identity (who is acting),
+- requested permission (what they are trying to do),
+- system state (context),
+- and, starting in v0.8, delegation context (are they acting as a delegate).
 
-- resolve(...) returns only the AuthorityDecision
-- resolve_with_audit(...) returns (AuthorityDecision, AuditEvent)
+It returns a structured decision record that can be:
+
+- shown in the CLI,
+- logged to the audit log,
+- correlated with enforcement and oversight systems.
+
+Delegation in v0.8 is handled conservatively:
+
+- If no applicable delegation exists where one is required, the decision
+  fails closed (DENY or REQUIRE_ADDITIONAL_APPROVAL).
+- Delegation never silently expands power beyond policy.
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Any, Dict, List, Optional
 
-from audit_event import AuditEvent
-
-
-class AuthorityDecision(Enum):
-    ALLOW = "allow"
-    DENY = "deny"
-    REQUIRE_ADDITIONAL_APPROVAL = "require_additional_approval"
-    DEFER = "defer"
+from delegation_context import resolve_delegation_context, DelegationContext
 
 
-class AuthorityEngine:
+class DecisionOutcome(str, Enum):
+    ALLOW = "ALLOW"
+    DENY = "DENY"
+    REQUIRE_ADDITIONAL_APPROVAL = "REQUIRE_ADDITIONAL_APPROVAL"
+
+
+@dataclass(frozen=True)
+class DecisionRecord:
+    identity_label: str
+    requested_permission_name: str
+    system_state: str
+    decision: DecisionOutcome
+    policy_ids: List[str]
+    reason: str
+    timestamp: str
+    # Delegation-aware fields (v0.8)
+    delegate_identity_label: Optional[str] = None
+    principal_identity_labels: Optional[List[str]] = None
+    delegation_ids: Optional[List[str]] = None
+
+
+def _now_iso_utc() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _evaluate_core_policies(
+    *,
+    identity_label: str,
+    requested_permission_name: str,
+    system_state: str,
+    delegation_ctx: DelegationContext,
+) -> DecisionRecord:
     """
-    Core authority resolution engine.
+    Core policy evaluation, including delegation-aware rules.
 
-    This class does NOT:
-    - Execute actions
-    - Modify system state
-    - Persist data
-
-    It evaluates authority and returns a decision.
+    This is intentionally small and explicit for v0.8. As the policy surface
+    grows, this can be refactored into a more generic rule engine.
     """
+    ts = delegation_ctx.decision_timestamp.isoformat(timespec="seconds").replace("+00:00", "Z")
 
-    def resolve(
-        self,
-        *,
-        identity: Any,
-        requested_permission_name: str,
-        system_state: Any,
-        roles_by_name: Dict[str, Any],
-        policies: List[Any],
-    ) -> AuthorityDecision:
-        """
-        Resolve whether an identity may perform a requested action.
+    # Defaults for delegation fields in the record.
+    delegate_identity_label: Optional[str] = None
+    principal_identity_labels: Optional[List[str]] = None
+    delegation_ids: Optional[List[str]] = None
 
-        This method follows the flow defined in:
-        docs/AUTHORITY_RESOLUTION_AND_STATE_MODEL.md
-        """
+    if delegation_ctx.is_delegated:
+        delegate_identity_label = identity_label
+        principal_identity_labels = delegation_ctx.principal_identity_labels or []
+        delegation_ids = [d.delegation_id for d in delegation_ctx.applicable_delegations]
 
-        # ------------------------------------------------------------------
-        # Step 1 — Identity Validation
-        # ------------------------------------------------------------------
-        if not identity.is_active():
-            return AuthorityDecision.DENY
+    # --- Example policy set for emergency lockdown ---
 
-        # ------------------------------------------------------------------
-        # Step 2 — Credential Validation
-        # ------------------------------------------------------------------
-        valid_credentials = [
-            c for c in getattr(identity, "credentials", []) if c.is_currently_valid()
-        ]
-
-        if not valid_credentials:
-            return AuthorityDecision.DENY
-
-        # ------------------------------------------------------------------
-        # Step 3 — Role Resolution
-        # ------------------------------------------------------------------
-        resolved_roles = []
-
-        for role_name in getattr(identity, "role_names", []):
-            role = roles_by_name.get(role_name)
-            if not role:
-                continue
-
-            # Check credential requirements
-            required_types = getattr(role, "required_credential_types", set())
-            if required_types:
-                credential_types = {c.claim_value for c in valid_credentials}
-                if not required_types.issubset(credential_types):
-                    continue
-
-            resolved_roles.append(role)
-
-        if not resolved_roles:
-            return AuthorityDecision.DENY
-
-        # ------------------------------------------------------------------
-        # Step 4 — Permission Matching
-        # ------------------------------------------------------------------
-        roles_granting_permission = [
-            role
-            for role in resolved_roles
-            if role.has_permission(requested_permission_name)
-        ]
-
-        if not roles_granting_permission:
-            return AuthorityDecision.DENY
-
-        # ------------------------------------------------------------------
-        # Step 5 — Policy Evaluation
-        # ------------------------------------------------------------------
-        applicable_policies = []
-        for policy in policies:
-            # Policy must apply to at least one of the roles
-            if not any(policy.applies_to_role(role.name) for role in roles_granting_permission):
-                continue
-            # And must explicitly allow this permission
-            if not policy.allows_permission(requested_permission_name):
-                continue
-            applicable_policies.append(policy)
-
-        if not applicable_policies:
-            return AuthorityDecision.DENY
-
-        for policy in applicable_policies:
-            condition = policy.condition
-
-            # Check system state requirement
-            required_state = getattr(condition, "required_system_state", None)
-            if required_state is not None and system_state != required_state:
-                # Policy does not apply in this state
-                continue
-
-            # Check approval thresholds
-            minimum_approvals = getattr(condition, "minimum_approvals", 1)
-            if minimum_approvals > 1:
-                return AuthorityDecision.REQUIRE_ADDITIONAL_APPROVAL
-
-            # If we reach here, this policy allows the action
-            return AuthorityDecision.ALLOW
-
-        # ------------------------------------------------------------------
-        # Step 6 — Fail Safe
-        # ------------------------------------------------------------------
-        return AuthorityDecision.DENY
-
-    # ----------------------------------------------------------------------
-    # New: resolve_with_audit
-    # ----------------------------------------------------------------------
-    def resolve_with_audit(
-        self,
-        *,
-        identity: Any,
-        requested_permission_name: str,
-        system_state: Any,
-        roles_by_name: Dict[str, Any],
-        policies: List[Any],
-        identity_label: Optional[str] = None,
-        policy_ids: Optional[List[str]] = None,
-        reason: Optional[str] = None,
-    ) -> Tuple[AuthorityDecision, AuditEvent]:
-        """
-        Resolve authority AND construct an AuditEvent for the decision.
-
-        This does not persist or log the event; it only creates the structure
-        so the caller can decide where and how to store it.
-
-        Parameters:
-        - identity: the identity object being evaluated
-        - requested_permission_name: name of the requested permission
-        - system_state: current system state (Enum or string-like)
-        - roles_by_name: mapping of role name -> role object
-        - policies: list of policy objects considered for this decision
-        - identity_label: optional human-readable label for audit
-        - policy_ids: optional list of policy identifiers used in evaluation
-        - reason: optional human-readable reason or context
-
-        Returns:
-        - (AuthorityDecision, AuditEvent)
-        """
-
-        decision = self.resolve(
-            identity=identity,
-            requested_permission_name=requested_permission_name,
-            system_state=system_state,
-            roles_by_name=roles_by_name,
-            policies=policies,
-        )
-
-        # Normalize system_state for audit
-        if hasattr(system_state, "name"):
-            system_state_value = system_state.name
+    # 1. Sovereign Owner — Emergency Lockdown
+    if identity_label == "SovereignOwner" and requested_permission_name == "AUTHORIZE_EMERGENCY_LOCKDOWN":
+        if system_state == "CRISIS":
+            return DecisionRecord(
+                identity_label=identity_label,
+                requested_permission_name=requested_permission_name,
+                system_state=system_state,
+                decision=DecisionOutcome.ALLOW,
+                policy_ids=["policy-001"],
+                reason="Sovereign owner authorizes emergency lockdown in CRISIS state.",
+                timestamp=ts,
+                delegate_identity_label=delegate_identity_label,
+                principal_identity_labels=principal_identity_labels,
+                delegation_ids=delegation_ids,
+            )
         else:
-            system_state_value = str(system_state)
+            return DecisionRecord(
+                identity_label=identity_label,
+                requested_permission_name=requested_permission_name,
+                system_state=system_state,
+                decision=DecisionOutcome.DENY,
+                policy_ids=["policy-001"],
+                reason="Emergency lockdown is not permitted for Sovereign owner outside CRISIS state.",
+                timestamp=ts,
+                delegate_identity_label=delegate_identity_label,
+                principal_identity_labels=principal_identity_labels,
+                delegation_ids=delegation_ids,
+            )
 
-        # Normalize decision for audit
-        decision_value = decision.name
+    # 2. Guardian — Emergency Lockdown (delegation-aware, conservative)
+    #
+    #    Business rule:
+    #    - In NORMAL state: never allowed.
+    #    - In CRISIS state:
+    #        - If no valid delegation exists -> DENY (hard fail, no silent authority).
+    #        - If valid delegation exists    -> REQUIRE_ADDITIONAL_APPROVAL
+    #          (still requires multi-party confirmation under policy-002).
+    #
+    if identity_label == "Guardian" and requested_permission_name == "AUTHORIZE_EMERGENCY_LOCKDOWN":
+        if system_state != "CRISIS":
+            return DecisionRecord(
+                identity_label=identity_label,
+                requested_permission_name=requested_permission_name,
+                system_state=system_state,
+                decision=DecisionOutcome.DENY,
+                policy_ids=["policy-002"],
+                reason="Guardian cannot request emergency lockdown outside CRISIS state.",
+                timestamp=ts,
+                delegate_identity_label=delegate_identity_label,
+                principal_identity_labels=principal_identity_labels,
+                delegation_ids=delegation_ids,
+            )
 
-        # Default identity label
-        if identity_label is None:
-            identity_label = getattr(identity, "display_name", "unknown")
+        # CRISIS state
+        if not delegation_ctx.is_delegated:
+            return DecisionRecord(
+                identity_label=identity_label,
+                requested_permission_name=requested_permission_name,
+                system_state=system_state,
+                decision=DecisionOutcome.DENY,
+                policy_ids=["policy-002-no-delegation"],
+                reason=(
+                    "Guardian attempted emergency lockdown in CRISIS state "
+                    "without an active delegation record from the Sovereign owner."
+                ),
+                timestamp=ts,
+                delegate_identity_label=delegate_identity_label,
+                principal_identity_labels=principal_identity_labels,
+                delegation_ids=delegation_ids,
+            )
 
-        # Default policy IDs
-        policy_ids = policy_ids or []
-
-        event = AuditEvent(
+        # Has valid delegation in CRISIS
+        return DecisionRecord(
             identity_label=identity_label,
             requested_permission_name=requested_permission_name,
-            system_state=system_state_value,
-            decision=decision_value,
-            policy_ids=policy_ids,
-            reason=reason,
+            system_state=system_state,
+            decision=DecisionOutcome.REQUIRE_ADDITIONAL_APPROVAL,
+            policy_ids=["policy-002"],
+            reason=(
+                "Guardian attempts emergency lockdown in CRISIS state under valid delegation; "
+                "policy requires additional approval before execution."
+            ),
+            timestamp=ts,
+            delegate_identity_label=delegate_identity_label,
+            principal_identity_labels=principal_identity_labels,
+            delegation_ids=delegation_ids,
         )
 
-        return decision, event
+    # 3. Default rule — Unknown or unsupported actions/identities
+    return DecisionRecord(
+        identity_label=identity_label,
+        requested_permission_name=requested_permission_name,
+        system_state=system_state,
+        decision=DecisionOutcome.DENY,
+        policy_ids=["policy-000-unknown"],
+        reason="Requested action is not permitted under the current governance policies.",
+        timestamp=ts,
+        delegate_identity_label=delegate_identity_label,
+        principal_identity_labels=principal_identity_labels,
+        delegation_ids=delegation_ids,
+    )
+
+
+def evaluate_decision(
+    identity_label: str,
+    requested_permission_name: str,
+    system_state: str,
+    decision_timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Main entry point: evaluate a governance decision for the given identity,
+    requested permission, and system state.
+
+    This is the function the CLI and audit layers should call.
+
+    Returns:
+        A dictionary representing the decision record, suitable for:
+        - printing in the CLI,
+        - logging to the audit log,
+        - correlation with enforcement and oversight.
+    """
+    # Resolve delegation context (read-only, no side effects).
+    delegation_ctx = resolve_delegation_context(
+        identity_label=identity_label,
+        requested_action=requested_permission_name,
+        system_state=system_state,
+        decision_timestamp=decision_timestamp,
+    )
+
+    decision_record = _evaluate_core_policies(
+        identity_label=identity_label,
+        requested_permission_name=requested_permission_name,
+        system_state=system_state,
+        delegation_ctx=delegation_ctx,
+    )
+
+    # Convert dataclass to a simple dict for external consumers.
+    result: Dict[str, Any] = {
+        "identity_label": decision_record.identity_label,
+        "requested_permission_name": decision_record.requested_permission_name,
+        "system_state": decision_record.system_state,
+        "decision": decision_record.decision.value,
+        "policy_ids": decision_record.policy_ids,
+        "reason": decision_record.reason,
+        "timestamp": decision_record.timestamp,
+    }
+
+    if decision_record.delegate_identity_label is not None:
+        result["delegate_identity_label"] = decision_record.delegate_identity_label
+    if decision_record.principal_identity_labels:
+        result["principal_identity_labels"] = decision_record.principal_identity_labels
+    if decision_record.delegation_ids:
+        result["delegation_ids"] = decision_record.delegation_ids
+
+    return result
+
+
+# Backward-compatible aliases, in case existing code uses older names.
+def evaluate_permission(
+    identity_label: str,
+    requested_permission_name: str,
+    system_state: str,
+    decision_timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+    return evaluate_decision(identity_label, requested_permission_name, system_state, decision_timestamp)
+
+
+def evaluate_governance_decision(
+    identity_label: str,
+    requested_permission_name: str,
+    system_state: str,
+    decision_timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+    return evaluate_decision(identity_label, requested_permission_name, system_state, decision_timestamp)
+
+
+if __name__ == "__main__":
+    # Simple smoke test for local runs
+    examples = [
+        ("SovereignOwner", "AUTHORIZE_EMERGENCY_LOCKDOWN", "CRISIS"),
+        ("SovereignOwner", "AUTHORIZE_EMERGENCY_LOCKDOWN", "NORMAL"),
+        ("Guardian", "AUTHORIZE_EMERGENCY_LOCKDOWN", "CRISIS"),
+        ("Guardian", "AUTHORIZE_EMERGENCY_LOCKDOWN", "NORMAL"),
+        ("UnknownUser", "AUTHORIZE_EMERGENCY_LOCKDOWN", "CRISIS"),
+    ]
+
+    for identity, perm, state in examples:
+        decision = evaluate_decision(identity, perm, state, _now_iso_utc())
+        print("------------------------------------------------------------")
+        print(f"Identity   : {decision['identity_label']}")
+        print(f"Permission : {decision['requested_permission_name']}")
+        print(f"State      : {decision['system_state']}")
+        print(f"Decision   : {decision['decision']}")
+        print(f"Policies   : {', '.join(decision['policy_ids'])}")
+        print(f"Reason     : {decision['reason']}")
+        if "principal_identity_labels" in decision:
+            print(f"Principals : {decision['principal_identity_labels']}")
+        if "delegation_ids" in decision:
+            print(f"Delegations: {decision['delegation_ids']}")
+        print("------------------------------------------------------------\n")
