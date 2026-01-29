@@ -1,0 +1,9 @@
+{
+  "identity": "Ronald",
+  "requested_action": "AUTHORIZE_EMERGENCY_LOCKDOWN",
+  "system_state": "CRISIS",
+  "context": {
+    "scenario_id": "owner-lockdown-crisis-v1",
+    "description": "Sovereign owner attempts emergency lockdown in crisis state via governance CLI."
+  }
+}

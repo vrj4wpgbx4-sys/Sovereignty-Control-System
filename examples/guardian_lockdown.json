@@ -1,0 +1,9 @@
+{
+  "identity": "Guardian",
+  "requested_action": "AUTHORIZE_EMERGENCY_LOCKDOWN",
+  "system_state": "CRISIS",
+  "context": {
+    "scenario_id": "guardian-lockdown-crisis-v1",
+    "description": "Family guardian attempts emergency lockdown in crisis state via governance CLI."
+  }
+}
