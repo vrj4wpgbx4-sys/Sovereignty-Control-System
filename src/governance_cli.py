@@ -1,115 +1,116 @@
 """
-Governance Scenario CLI (v0.8)
-Sovereignty Control System
+Sovereignty Control System — Governance Execution CLI (v0.9 mainline)
 
 This CLI:
-- Calls the authority engine to evaluate a governance decision.
-- Prints the decision in a human-readable form.
-- Writes the decision to the audit log using the centralized audit logger,
-  including delegation-related fields when present.
 
-It does NOT:
-- Change the authority engine's logic.
-- Bypass existing CLIs.
-- Modify or read the audit log directly.
+- Loads a decision scenario from a JSON file
+- Runs the authority engine
+- Optionally records the decision to the audit log
+- Prints a human-readable summary
+
+Usage examples:
+
+    # Dry run (no audit log write)
+    python -m src.governance_cli --scenario examples/owner_lockdown.json --dry-run
+
+    # Execute and record to default audit log (data/audit_log.jsonl)
+    python -m src.governance_cli --scenario examples/owner_lockdown.json
+
+    # Execute and record to a custom audit log
+    python -m src.governance_cli --scenario examples/owner_lockdown.json \
+        --audit-log data/custom_audit_log.jsonl
 """
 
 from __future__ import annotations
 
-from typing import Tuple
+import argparse
+import json
+from pathlib import Path
+from typing import Any, Dict
 
-from authority_engine import evaluate_decision
-from audit_logger import log_decision_dict
+from .authority_engine import evaluate_decision, evaluate_and_record, AUDIT_LOG_PATH_DEFAULT
 
 
-def _print_decision(decision: dict) -> None:
-    """Pretty-print a decision record."""
-    print("============================================================")
-    print(f"Identity         : {decision.get('identity_label', '-')}")
-    print(f"Requested action : {decision.get('requested_permission_name', '-')}")
-    print(f"System state     : {decision.get('system_state', '-')}")
-    print(f"Decision outcome : {decision.get('decision', '-')}")
-    print(f"Policy IDs       : {', '.join(decision.get('policy_ids', []))}")
-    print(f"Reason           : {decision.get('reason', '-')}")
-    print(f"Timestamp        : {decision.get('timestamp', '-')}")
-    # Delegation-related context (v0.8)
-    delegate = decision.get("delegate_identity_label")
-    principals = decision.get("principal_identity_labels")
-    delegation_ids = decision.get("delegation_ids")
+def load_scenario(path: Path | str) -> Dict[str, Any]:
+    p = Path(path)
+    with p.open("r", encoding="utf-8") as f:
+        return json.load(f)
 
-    if delegate or principals or delegation_ids:
-        print("\nDelegation context:")
-        if delegate:
-            print(f"  Delegate identity   : {delegate}")
-        if principals:
-            print(f"  Principal identities: {principals}")
-        if delegation_ids:
-            print(f"  Delegation IDs      : {delegation_ids}")
+
+def print_decision(decision: Dict[str, Any]) -> None:
+    """
+    Print a human-readable summary of the decision.
+    Compatible with the existing view_decisions_cli output style.
+    """
+    timestamp = decision.get("timestamp", "")
+    identity = decision.get("identity", "")
+    requested_action = decision.get("requested_action", "")
+    system_state = decision.get("system_state", "")
+    decision_outcome = decision.get("decision_outcome", "")
+    policy_ids = decision.get("policy_ids", [])
+    reason = decision.get("reason", "")
+
+    print("========================================")
+    print(f"Timestamp       : {timestamp}")
+    print(f"Identity        : {identity}")
+    print(f"Requested action: {requested_action}")
+    print(f"System state    : {system_state}")
+    print(f"Decision outcome: {decision_outcome}")
+    print(f"Policy IDs      : {', '.join(policy_ids) if policy_ids else '-'}")
+    print(f"Reason          : {reason}")
+    print("========================================")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Execute governance decisions and optionally record them to the audit log.",
+    )
+    parser.add_argument(
+        "--scenario",
+        required=True,
+        help="Path to a JSON file describing the decision scenario.",
+    )
+    parser.add_argument(
+        "--audit-log",
+        default=str(AUDIT_LOG_PATH_DEFAULT),
+        help=f"Path to the audit log JSONL file (default: {AUDIT_LOG_PATH_DEFAULT}).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Evaluate the decision without writing to the audit log.",
+    )
+
+    args = parser.parse_args(argv)
+
+    scenario = load_scenario(args.scenario)
+
+    if args.dry_run:
+        decision_record = evaluate_decision(scenario)
+        decision_dict = {
+            "timestamp": decision_record.timestamp,
+            "identity": decision_record.identity,
+            "requested_action": decision_record.requested_action,
+            "system_state": decision_record.system_state,
+            "decision_outcome": decision_record.decision_outcome,
+            "policy_ids": decision_record.policy_ids,
+            "reason": decision_record.reason,
+        }
     else:
-        print("\nDelegation context: none (no applicable delegation)")
+        decision_record = evaluate_and_record(scenario, audit_log_path=args.audit_log)
+        decision_dict = {
+            "timestamp": decision_record.timestamp,
+            "identity": decision_record.identity,
+            "requested_action": decision_record.requested_action,
+            "system_state": decision_record.system_state,
+            "decision_outcome": decision_record.decision_outcome,
+            "policy_ids": decision_record.policy_ids,
+            "reason": decision_record.reason,
+        }
 
-    print("============================================================")
-    print()
-
-
-def _scenario_menu() -> Tuple[str, str, str]:
-    """
-    Present a simple menu of fixed scenarios.
-
-    This keeps behavior deterministic and easy for reviewers
-    and testers to follow.
-    """
-    print("== Sovereignty Control System – Governance Scenarios (v0.8) ==")
-    print("Select a scenario:")
-    print("  1) Sovereign owner – emergency lockdown in CRISIS state")
-    print("  2) Sovereign owner – emergency lockdown in NORMAL state")
-    print("  3) Guardian – emergency lockdown in CRISIS state")
-    print("  4) Guardian – emergency lockdown in NORMAL state")
-    print("  0) Exit")
-    choice = input("Enter choice: ").strip()
-
-    if choice == "1":
-        return "SovereignOwner", "AUTHORIZE_EMERGENCY_LOCKDOWN", "CRISIS"
-    elif choice == "2":
-        return "SovereignOwner", "AUTHORIZE_EMERGENCY_LOCKDOWN", "NORMAL"
-    elif choice == "3":
-        return "Guardian", "AUTHORIZE_EMERGENCY_LOCKDOWN", "CRISIS"
-    elif choice == "4":
-        return "Guardian", "AUTHORIZE_EMERGENCY_LOCKDOWN", "NORMAL"
-    elif choice == "0":
-        raise SystemExit(0)
-    else:
-        print("Invalid choice, please try again.\n")
-        return _scenario_menu()
-
-
-def main() -> None:
-    """
-    Main entry point for the governance CLI.
-
-    For each chosen scenario:
-    - Evaluate the decision via the authority engine (delegation-aware).
-    - Print the result to the console.
-    - Append the decision to the audit log using the centralized audit logger.
-    """
-    while True:
-        identity_label, permission_name, system_state = _scenario_menu()
-
-        # Evaluate the decision using the authority engine (v0.8, delegation-aware).
-        decision = evaluate_decision(
-            identity_label=identity_label,
-            requested_permission_name=permission_name,
-            system_state=system_state,
-        )
-
-        # Print the decision for the operator / reviewer.
-        _print_decision(decision)
-
-        # Persist the decision to the audit log (JSONL), including delegation fields if present.
-        log_decision_dict(decision)
-
-        print("Decision has been recorded in data/audit_log.jsonl.\n")
+    print_decision(decision_dict)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
