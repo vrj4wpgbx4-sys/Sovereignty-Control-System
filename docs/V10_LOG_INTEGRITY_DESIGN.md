@@ -64,7 +64,7 @@ Each log entry includes **two integrity fields**:
 {
   "timestamp": "...",
   "kind": "...",
-  "payload": {...},
+  "payload": { ... },
 
   "prev_hash": "hex-encoded SHA-256 hash or null",
   "entry_hash": "hex-encoded SHA-256 hash"
