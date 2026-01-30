@@ -1,17 +1,21 @@
 """
-Sovereignty Control System — Governance CLI (v0.9-ready)
+Sovereignty Control System — Governance CLI (v0.9-ready, v1.0-log-integrity-ready)
 
 Primary execution surface for governance decisions.
 
 Modes:
-1) Decision-only (v0.8 default)
+1) Decision-only (v0.8 default behavior)
 2) Decision + Enforcement (v0.9, opt-in via --enforce)
 
 Key guarantees:
 - No enforcement without a decision
 - Enforcement is explicit
 - Enforcement does not override authority
-- Audit and enforcement logs remain separate
+- Decision, enforcement, and logging remain separated
+
+v1.0 extension:
+- Decisions are recorded via AuditLogger, which now attaches hash-chain
+  integrity fields ('prev_hash', 'entry_hash') to the audit log entries.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 
 from .authority_engine import evaluate_decision
+from .audit_logger import log_decision, DEFAULT_AUDIT_LOG_PATH
 from .enforcement.dispatcher import (
     EnforcementAction,
     EnforcementContext,
@@ -31,9 +36,6 @@ from .enforcement.dispatcher import (
 )
 from .enforcement.lockdown_state_effector import LockdownStateEffector
 from .enforcement.enforcement_logger import append_enforcement_result
-
-
-DEFAULT_AUDIT_LOG_PATH = Path("data/audit_log.jsonl")
 
 
 # ---------------------------------------------------------------------------
@@ -65,9 +67,9 @@ def print_decision_summary(decision: Any) -> None:
     print("=" * 50)
     print(f"Timestamp       : {_get(decision, 'timestamp', '')}")
     print(f"Identity        : {_get(decision, 'identity', _get(decision, 'identity_label', ''))}")
-    print(f"Requested action: {_get(decision, 'requested_action', '')}")
+    print(f"Requested action: {_get(decision, 'requested_action', _get(decision, 'requested_permission_name', ''))}")
     print(f"System state    : {_get(decision, 'system_state', '')}")
-    print(f"Decision outcome: {_get(decision, 'decision_outcome', '')}")
+    print(f"Decision outcome: {_get(decision, 'decision_outcome', _get(decision, 'decision', ''))}")
     print(f"Policy IDs      : {_format_policy_ids(_get(decision, 'policy_ids', []))}")
     print(f"Reason          : {_get(decision, 'reason', '')}")
     print("=" * 50)
@@ -87,11 +89,15 @@ def build_enforcement_request_from_decision(
     Build an EnforcementRequest from a successful decision.
 
     v0.9 rule: we only enforce when:
-      - decision_outcome == ALLOW
-      - requested_action == AUTHORIZE_EMERGENCY_LOCKDOWN
+      - decision outcome == ALLOW
+      - requested action == AUTHORIZE_EMERGENCY_LOCKDOWN
     """
-    outcome = str(_get(decision, "decision_outcome", "")).upper()
-    requested_action = str(_get(decision, "requested_action", "")).upper()
+    outcome = str(
+        _get(decision, "decision_outcome", _get(decision, "decision", ""))
+    ).upper()
+    requested_action = str(
+        _get(decision, "requested_action", _get(decision, "requested_permission_name", ""))
+    ).upper()
 
     if outcome != "ALLOW":
         return None
@@ -208,13 +214,12 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--audit-log",
         default=str(DEFAULT_AUDIT_LOG_PATH),
-        help="Audit log JSONL path (default: data/audit_log.jsonl). "
-             "Currently informational; decision logging remains within the authority engine.",
+        help="Audit log JSONL path (default: data/audit_log.jsonl).",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Evaluate without performing real enforcement side effects.",
+        help="Evaluate without performing real enforcement side effects or audit writes.",
     )
     parser.add_argument(
         "--enforce",
@@ -238,7 +243,12 @@ def main(argv: Optional[list[str]] = None) -> None:
     # v0.8-pure decision evaluation: authority engine sees only scenario data.
     decision = evaluate_decision(scenario_data)
 
+    # Human-readable decision summary to stdout
     print_decision_summary(decision)
+
+    # v1.0: write to audit log in non-dry-run mode, with hash-chaining
+    if not args.dry_run:
+        log_decision(decision, audit_log_path=Path(args.audit_log))
 
     # v0.9 enforcement path: explicit, downstream, and optional.
     if args.enforce:
