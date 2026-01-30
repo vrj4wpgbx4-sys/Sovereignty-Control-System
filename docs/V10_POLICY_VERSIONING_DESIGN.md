@@ -4,13 +4,16 @@
 
 This document defines **policy versioning** for v1.0 of the Sovereignty Control System.
 
-The goal is to ensure that every governance decision can be tied **after the fact** to a specific, declared snapshot of the policies that were in force when the decision was made.
+The goal is to ensure that every governance decision can be tied **after the fact**
+to a specific, declared snapshot of the policies that were in force when the
+decision was made.
 
 This allows reviewers to answer a critical question:
 
 > “Which policy version did the system claim to be following at the time of this decision?”
 
-This design focuses on **decision provenance**, not policy authoring workflows or formal verification.
+This design focuses on **decision provenance**, not policy authoring workflows,
+policy correctness proofs, or automated validation.
 
 ---
 
@@ -20,7 +23,7 @@ Policy versioning in v1.0 MUST:
 
 - Bind each decision to an explicit policy snapshot
 - Be recorded directly in the audit log
-- Be integrity-protected by existing hash chaining
+- Be integrity-protected by the existing hash-chained log model
 - Be deterministic and offline-verifiable
 - Avoid implicit or inferred “latest policy” behavior
 - Remain simple enough for non-specialist reviewers
@@ -41,9 +44,9 @@ Any design that violates these goals is rejected.
 
 - Policy authoring tools
 - Formal policy languages
-- Automated policy validation or proofs
+- Automated policy correctness proofs
 - External registries, signatures, or notarization
-- Distributed consensus on policy state
+- Distributed consensus over policy state
 
 These may be introduced in later versions.
 
