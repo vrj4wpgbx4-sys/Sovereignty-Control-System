@@ -1,100 +1,117 @@
-
 # Sovereignty Control System (SCS)
 
-**Version:** v0.6  
-**Status:** Active Development  
-**Focus:** Deterministic governance, policy enforcement, and decision visibility
+**Version:** v1.0  
+**Status:** Active Development (Integrity & Provenance Established)  
+**Focus:** Deterministic governance, explicit enforcement, and cryptographically verifiable decision history
 
 ---
 
 ## Overview
 
-The **Sovereignty Control System (SCS)** is a governance-first control framework designed to model, enforce, and audit authority-based decisions in high-trust, high-risk systems.
+The **Sovereignty Control System (SCS)** is a governance-first control framework designed to
+**evaluate, enforce, and permanently record authority-based decisions** in high-trust,
+high-risk systems.
 
-SCS treats governance as executable logic — not documentation — and ensures that **every privileged action is evaluated, enforced, and recorded according to explicit policy**.
+SCS treats governance as **executable logic**, not documentation.
+
+Every privileged action is:
+
+1. **Explicitly evaluated** against policy and authority
+2. **Optionally enforced** through controlled effectors
+3. **Immutably recorded** in tamper-detectable logs
+4. **Auditable offline**, after the fact
 
 The system is intentionally opinionated:
-- Authority is defined
-- Policies are explicit
-- Enforcement is deterministic
-- Decisions are immutable
-- Oversight is visible
+
+- Authority is explicit
+- Policies are declared
+- Enforcement is downstream of decisions
+- Decisions cannot be silently altered
+- Oversight does not require live system access
+
+---
+
+## Core Guarantees
+
+As of v1.0, SCS guarantees that:
+
+- No enforcement occurs without a recorded decision
+- Decisions are deterministic and reproducible
+- Decision and enforcement trails are cryptographically tamper-detectable
+- Policy provenance is recorded and verifiable
+- Reviewers can validate system behavior offline
 
 ---
 
 ## What SCS Does
 
 At its core, SCS evaluates **requested actions** against:
-- Identity
-- System state
-- Authority hierarchy
-- Active policies
 
-It then produces one of three outcomes:
+- Identity and authority
+- System state (e.g., NORMAL vs CRISIS)
+- Explicit governance policies
+- Declared policy versions
 
-- **ALLOW** — action is permitted
-- **DENY** — action is prohibited
-- **REQUIRE_ADDITIONAL_APPROVAL** — action is gated by governance rules
+Each evaluation produces a **decision record** explaining:
 
-Every evaluation produces a **decision record** explaining *why* the outcome occurred.
+- Who requested the action
+- What was requested
+- Under which conditions
+- Which policies applied
+- Why the outcome occurred
+
+Possible outcomes:
+
+- **ALLOW**
+- **DENY**
+- **REQUIRE_ADDITIONAL_APPROVAL**
 
 ---
 
-## Current Capabilities (v0.6)
+## Current Capabilities (v1.0)
 
 ### ✅ Governance & Authority
 - Explicit authority hierarchy
-- Sovereign owner and delegated roles
-- Guardian-based escalation rules
+- Sovereign owner, delegates, and guardians
+- Deterministic evaluation (no heuristics or inference)
 
 ### ✅ Policy Engine
 - Policy-driven authorization
-- State-dependent rules (e.g., NORMAL vs CRISIS)
-- Deterministic evaluation (no heuristics)
+- State-dependent rules
+- Explicit policy identifiers
+- Declared **policy_version_id** for provenance
 
-### ✅ Enforcement Layer
-- Central decision gate for sensitive actions
-- Action requests cannot bypass evaluation
-- Enforcement logic isolated from callers
+### ✅ Enforcement Layer (v0.9+)
+- Enforcement is downstream of decisions
+- Dispatcher-mediated execution
+- Local-only effectors
+- Idempotent safety behavior (e.g., lockdown NOOPs)
 
-### ✅ Decision Logging
-- Every decision is recorded with:
-  - Timestamp
-  - Identity
-  - Requested action
-  - System state
-  - Decision outcome
-  - Applied policy IDs
-  - Human-readable reasoning
+### ✅ Audit Logging (v1.0)
+- Append-only JSONL audit log
+- Hash-chained entries (`prev_hash`, `entry_hash`)
+- Offline verification via CLI
+- Legacy-safe (hashing begins at v1.0 boundary)
 
-### ✅ Decision Visibility (New in v0.6)
-- Read-only CLI access to decision history
-- No authority required to view past decisions
-- Supports governance review, audits, and oversight
+### ✅ Enforcement Logging (v1.0)
+- Separate enforcement log
+- Hash-chained integrity model
+- Clear separation from decision records
+- Optional propagation of decision provenance
 
-Example:
-```bash
-python src/main.py view-decisions
+### ✅ Policy Versioning (v1.0)
+- Every non-dry-run decision binds to an explicit `policy_version_id`
+- Policy provenance is included in the integrity envelope
+- Tampering with policy history is detectable
 
+---
 
-Sovereignty-Control-System/
-├── src/
-│   ├── authority_engine.py
-│   ├── audit_event.py
-│   ├── decision_gate.py
-│   ├── main.py
-│   ├── view_decisions_cli.py
-│   └── enforcement/
-│       └── decision_gate.py
-│
-├── docs/
-│   ├── FOUNDATION_INDEX.md
-│   ├── VERSIONING_PHILOSOPHY.md
-│   └── governance/
-│       ├── DECISION_MODEL.md
-│       ├── POLICY_LIFECYCLE.md
-│       ├── DECISION_HISTORY_MODEL.md
-│       └── OVERSIGHT_VISIBILITY.md
-│
-├── RELEASES.md
-└── README.md
+## Verification & Review
+
+SCS is designed to be reviewed **after the fact**.
+
+Reviewers can:
+
+1. Verify audit log integrity:
+   ```bash
+   python -m src.log_integrity verify --log-path data/audit_log.jsonl
