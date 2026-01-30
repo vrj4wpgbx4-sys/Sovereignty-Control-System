@@ -1,24 +1,17 @@
 """
-Sovereignty Control System — Governance Execution CLI (v0.9 mainline)
+Sovereignty Control System — Governance CLI (v0.9-ready)
 
-This CLI:
+Primary execution surface for governance decisions.
 
-- Loads a decision scenario from a JSON file
-- Runs the authority engine
-- Optionally records the decision to the audit log
-- Prints a human-readable summary
+Modes:
+1) Decision-only (v0.8 default)
+2) Decision + Enforcement (v0.9, opt-in via --enforce)
 
-Usage examples:
-
-    # Dry run (no audit log write)
-    python -m src.governance_cli --scenario examples/owner_lockdown.json --dry-run
-
-    # Execute and record to default audit log (data/audit_log.jsonl)
-    python -m src.governance_cli --scenario examples/owner_lockdown.json
-
-    # Execute and record to a custom audit log
-    python -m src.governance_cli --scenario examples/owner_lockdown.json \
-        --audit-log data/custom_audit_log.jsonl
+Key guarantees:
+- No enforcement without a decision
+- Enforcement is explicit
+- Enforcement does not override authority
+- Audit and enforcement logs remain separate
 """
 
 from __future__ import annotations
@@ -26,45 +19,187 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional, List
 
-from .authority_engine import evaluate_decision, evaluate_and_record, AUDIT_LOG_PATH_DEFAULT
+from .authority_engine import evaluate_decision
+from .enforcement.dispatcher import (
+    EnforcementAction,
+    EnforcementContext,
+    EnforcementDispatcher,
+    EnforcementRequest,
+    summarize_enforcement_result,
+)
+from .enforcement.lockdown_state_effector import LockdownStateEffector
+from .enforcement.enforcement_logger import append_enforcement_result
 
 
-def load_scenario(path: Path | str) -> Dict[str, Any]:
-    p = Path(path)
-    with p.open("r", encoding="utf-8") as f:
-        return json.load(f)
+DEFAULT_AUDIT_LOG_PATH = Path("data/audit_log.jsonl")
 
 
-def print_decision(decision: Dict[str, Any]) -> None:
+# ---------------------------------------------------------------------------
+# Decision helpers
+# ---------------------------------------------------------------------------
+
+
+def _get(obj: Any, key: str, default: Any = None) -> Any:
+    """Safely extract an attribute or key from a decision-like object."""
+    if obj is None:
+        return default
+    if hasattr(obj, key):
+        return getattr(obj, key)
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return default
+
+
+def _format_policy_ids(policy_ids: Any) -> str:
+    if not policy_ids:
+        return ""
+    if isinstance(policy_ids, (list, tuple, set)):
+        return ", ".join(str(p) for p in policy_ids)
+    return str(policy_ids)
+
+
+def print_decision_summary(decision: Any) -> None:
+    """Human-readable decision summary, stable for reviewers."""
+    print("=" * 50)
+    print(f"Timestamp       : {_get(decision, 'timestamp', '')}")
+    print(f"Identity        : {_get(decision, 'identity', _get(decision, 'identity_label', ''))}")
+    print(f"Requested action: {_get(decision, 'requested_action', '')}")
+    print(f"System state    : {_get(decision, 'system_state', '')}")
+    print(f"Decision outcome: {_get(decision, 'decision_outcome', '')}")
+    print(f"Policy IDs      : {_format_policy_ids(_get(decision, 'policy_ids', []))}")
+    print(f"Reason          : {_get(decision, 'reason', '')}")
+    print("=" * 50)
+
+
+# ---------------------------------------------------------------------------
+# Enforcement wiring
+# ---------------------------------------------------------------------------
+
+
+def build_enforcement_request_from_decision(
+    decision: Any,
+    *,
+    dry_run: bool,
+) -> Optional[EnforcementRequest]:
     """
-    Print a human-readable summary of the decision.
-    Compatible with the existing view_decisions_cli output style.
+    Build an EnforcementRequest from a successful decision.
+
+    v0.9 rule: we only enforce when:
+      - decision_outcome == ALLOW
+      - requested_action == AUTHORIZE_EMERGENCY_LOCKDOWN
     """
-    timestamp = decision.get("timestamp", "")
-    identity = decision.get("identity", "")
-    requested_action = decision.get("requested_action", "")
-    system_state = decision.get("system_state", "")
-    decision_outcome = decision.get("decision_outcome", "")
-    policy_ids = decision.get("policy_ids", [])
-    reason = decision.get("reason", "")
+    outcome = str(_get(decision, "decision_outcome", "")).upper()
+    requested_action = str(_get(decision, "requested_action", "")).upper()
 
-    print("========================================")
-    print(f"Timestamp       : {timestamp}")
-    print(f"Identity        : {identity}")
-    print(f"Requested action: {requested_action}")
-    print(f"System state    : {system_state}")
-    print(f"Decision outcome: {decision_outcome}")
-    print(f"Policy IDs      : {', '.join(policy_ids) if policy_ids else '-'}")
-    print(f"Reason          : {reason}")
-    print("========================================")
+    if outcome != "ALLOW":
+        return None
 
+    if requested_action != "AUTHORIZE_EMERGENCY_LOCKDOWN":
+        return None
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Execute governance decisions and optionally record them to the audit log.",
+    identity = _get(decision, "identity", _get(decision, "identity_label", ""))
+    reason = _get(decision, "reason", "Lockdown authorized by governance decision")
+    timestamp = _get(decision, "timestamp", "")
+    policy_ids = _get(decision, "policy_ids", [])
+
+    decision_reference: Dict[str, Any] = {
+        "timestamp": timestamp,
+        "requested_action": requested_action,
+        "identity": identity,
+        "policy_ids": policy_ids,
+        "decision_outcome": outcome,
+    }
+
+    context = EnforcementContext(
+        data={
+            "decision_outcome": outcome,
+            "identity": identity,
+            "requested_action": requested_action,
+            "policy_ids": policy_ids,
+            "timestamp": timestamp,
+            "reason": reason,
+        }
     )
+
+    actions: List[EnforcementAction] = [
+        EnforcementAction(
+            action_type="lockdown_state",
+            target="system",
+            parameters={
+                "operation": "SET",
+                "reason": reason,
+                "requested_by": identity or "unknown",
+            },
+        )
+    ]
+
+    return EnforcementRequest(
+        decision_reference=decision_reference,
+        context=context,
+        actions=actions,
+        dry_run=dry_run,
+    )
+
+
+def execute_enforcement(
+    decision: Any,
+    *,
+    dry_run: bool,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Execute enforcement downstream of a decision, if applicable.
+
+    - Builds an EnforcementRequest from the decision
+    - Dispatches via EnforcementDispatcher
+    - Logs the result to enforcement_log.jsonl
+    - Returns a summarized dict for CLI rendering
+    """
+    request = build_enforcement_request_from_decision(decision, dry_run=dry_run)
+    if request is None:
+        return None
+
+    dispatcher = EnforcementDispatcher(effectors=[LockdownStateEffector()])
+    result = dispatcher.dispatch(request)
+
+    append_enforcement_result(result, additional_metadata=additional_metadata)
+    return summarize_enforcement_result(result)
+
+
+def print_enforcement_summary(summary: Optional[Dict[str, Any]]) -> None:
+    """Human-readable enforcement summary for the CLI."""
+    if not summary:
+        print("No enforcement was performed.")
+        return
+
+    print("\nEnforcement Summary")
+    print("-" * 20)
+    print(f"Dry run : {summary.get('dry_run', False)}")
+
+    decision_ref = summary.get("decision_reference", {}) or {}
+    print(f"Outcome : {decision_ref.get('decision_outcome', 'UNKNOWN')}")
+
+    for idx, action in enumerate(summary.get("actions", []), start=1):
+        print(f"\nAction #{idx}")
+        print(f"  Type    : {action.get('action_type')}")
+        print(f"  Target  : {action.get('target')}")
+        print(f"  Outcome : {action.get('outcome')}")
+        for k, v in (action.get("details") or {}).items():
+            print(f"    - {k}: {v}")
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Sovereignty Control System — Governance CLI"
+    )
+
     parser.add_argument(
         "--scenario",
         required=True,
@@ -72,45 +207,52 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--audit-log",
-        default=str(AUDIT_LOG_PATH_DEFAULT),
-        help=f"Path to the audit log JSONL file (default: {AUDIT_LOG_PATH_DEFAULT}).",
+        default=str(DEFAULT_AUDIT_LOG_PATH),
+        help="Audit log JSONL path (default: data/audit_log.jsonl). "
+             "Currently informational; decision logging remains within the authority engine.",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Evaluate the decision without writing to the audit log.",
+        help="Evaluate without performing real enforcement side effects.",
+    )
+    parser.add_argument(
+        "--enforce",
+        action="store_true",
+        help="Opt-in: attempt enforcement after an ALLOW decision.",
     )
 
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
 
-    scenario = load_scenario(args.scenario)
 
-    if args.dry_run:
-        decision_record = evaluate_decision(scenario)
-        decision_dict = {
-            "timestamp": decision_record.timestamp,
-            "identity": decision_record.identity,
-            "requested_action": decision_record.requested_action,
-            "system_state": decision_record.system_state,
-            "decision_outcome": decision_record.decision_outcome,
-            "policy_ids": decision_record.policy_ids,
-            "reason": decision_record.reason,
+def main(argv: Optional[list[str]] = None) -> None:
+    args = parse_args(argv)
+
+    scenario_path = Path(args.scenario)
+    if not scenario_path.is_file():
+        raise SystemExit(f"Scenario file not found: {scenario_path}")
+
+    with scenario_path.open("r", encoding="utf-8") as f:
+        scenario_data = json.load(f)
+
+    # v0.8-pure decision evaluation: authority engine sees only scenario data.
+    decision = evaluate_decision(scenario_data)
+
+    print_decision_summary(decision)
+
+    # v0.9 enforcement path: explicit, downstream, and optional.
+    if args.enforce:
+        metadata = {
+            "invoked_by": "governance_cli",
+            "scenario_path": str(scenario_path),
         }
-    else:
-        decision_record = evaluate_and_record(scenario, audit_log_path=args.audit_log)
-        decision_dict = {
-            "timestamp": decision_record.timestamp,
-            "identity": decision_record.identity,
-            "requested_action": decision_record.requested_action,
-            "system_state": decision_record.system_state,
-            "decision_outcome": decision_record.decision_outcome,
-            "policy_ids": decision_record.policy_ids,
-            "reason": decision_record.reason,
-        }
-
-    print_decision(decision_dict)
-    return 0
+        summary = execute_enforcement(
+            decision,
+            dry_run=args.dry_run,
+            additional_metadata=metadata,
+        )
+        print_enforcement_summary(summary)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

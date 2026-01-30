@@ -205,4 +205,5 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-src/enforcement/ 
+# Pre-v0.9 enforcement scaffolding (now tracked)
+# src/enforcement/
