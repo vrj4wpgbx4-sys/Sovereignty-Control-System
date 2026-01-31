@@ -210,6 +210,25 @@ def _print_list(entries: List[Dict[str, Any]]) -> None:
         print(_format_list_row(entry))
 
 
+def _entry_to_summary_dict(entry: Dict[str, Any]) -> Dict[str, Any]:
+    record = entry["record"]
+    return {
+        "index": entry["index"],
+        "integrity_status": entry["integrity_status"],
+        "integrity_error": entry["integrity_error"],
+        "timestamp": _get(record, "timestamp", ""),
+        "identity": _get(record, "identity_label", _get(record, "identity", "")),
+        "requested_action": _get(
+            record,
+            "requested_permission_name",
+            _get(record, "requested_action", ""),
+        ),
+        "decision": _get(record, "decision", _get(record, "decision_outcome", "")),
+        "policy_version_id": _get(record, "policy_version_id", None),
+        "policy_ids": _get(record, "policy_ids", []),
+    }
+
+
 def _print_explanation(entry: Dict[str, Any]) -> None:
     record = entry["record"]
     idx = entry["index"]
@@ -259,7 +278,14 @@ def cmd_list(args: argparse.Namespace) -> None:
     log_path = Path(args.log_path)
     entries = _load_log_entries(log_path)
     annotated = _verify_hash_chain(entries)
-    _print_list(annotated)
+
+    if args.json:
+        # JSON mode: emit a JSON array of summarized entries
+        summaries = [_entry_to_summary_dict(e) for e in annotated]
+        json.dump(summaries, sys.stdout, indent=2, default=str)
+        print()
+    else:
+        _print_list(annotated)
 
 
 def cmd_explain(args: argparse.Namespace) -> None:
@@ -280,7 +306,19 @@ def cmd_explain(args: argparse.Namespace) -> None:
         raise SystemExit(2)
 
     entry = annotated[index]
-    _print_explanation(entry)
+
+    if args.json:
+        # JSON mode: emit full record plus integrity metadata
+        output = {
+            "index": entry["index"],
+            "integrity_status": entry["integrity_status"],
+            "integrity_error": entry["integrity_error"],
+            "record": entry["record"],
+        }
+        json.dump(output, sys.stdout, indent=2, default=str)
+        print()
+    else:
+        _print_explanation(entry)
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +344,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "list",
         help="List decisions with basic fields and integrity status",
     )
+    list_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output list as JSON instead of text table",
+    )
     list_parser.set_defaults(func=cmd_list)
 
     # explain
@@ -318,6 +361,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=int,
         required=True,
         help="0-based index of the decision to explain (as shown by 'list')",
+    )
+    explain_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output explanation as JSON instead of text",
     )
     explain_parser.set_defaults(func=cmd_explain)
 
